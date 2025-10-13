@@ -1,0 +1,145 @@
+/* 遮罩层 */
+.alert-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    opacity: 0;
+    animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+    to {
+        opacity: 1;
+    }
+}
+
+/* 弹窗主体 */
+.alert-modal-main-wrapper {
+    background: rgba(0, 10, 24, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    border: 3px solid;
+    box-sizing: border-box;
+    min-width: 400px;
+    max-width: 600px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    animation: slideDown 0.3s ease;
+    border-radius: 0px 39px 0px 25px;
+    border: 30px solid #ffffff;
+    border-image: url('../assets/border.png') 51 38 21 132;
+    border-width: 30px 28px 21px 30px;
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* 不同类型的边框颜色 */
+.alert-type-danger {
+    border-color: #ff4444;
+}
+
+.alert-type-warning {
+    border-color: #ffaa00;
+}
+
+.alert-type-info {
+    border-color: #4499ff;
+}
+
+.alert-type-success {
+    border-color: #44ff44;
+}
+
+.alert-modal-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.alert-modal-content {
+    position: relative;
+}
+
+/* 头部 */
+.alert-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.alert-title {
+    margin: 0;
+    font-size: 20px;
+    font-weight: bold;
+    color: #ffffff;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.alert-close-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+    border-radius: 50%;
+}
+
+.alert-close-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.1);
+    transform: rotate(90deg);
+}
+
+/* 内容区域 */
+.alert-body {
+    padding: 10px 10px;
+}
+
+.alert-message {
+    margin: 0;
+    font-size: 16px;
+    color: #ffffff;
+    line-height: 1.6;
+}
+
+/* 不同类型的消息颜色 */
+.alert-type-danger .alert-message {
+    color: #ff6666;
+}
+
+.alert-type-warning .alert-message {
+    color: #ffcc66;
+}
+
+.alert-type-info .alert-message {
+    color: #66aaff;
+}
+
+.alert-type-success .alert-message {
+    color: #66ff66;
+}

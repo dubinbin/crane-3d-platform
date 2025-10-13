@@ -1,0 +1,59 @@
+.pointCloud-helper-panel {
+
+    background: #00000021;
+    backdrop-filter: blur(5px);
+    border-radius: 0px 39px 0px 25px;
+
+    border: 10px solid #ffffff;
+    border-image: url('../assets/border.png') 51 38 21 132;
+    border-width:40px 40px 12px 39px;
+    box-sizing: border-box;
+
+    /* 添加高度限制，防止占据过多空间 */
+    height: auto;
+    max-height: 600px;
+    overflow-y: auto;
+
+    /* 美化滚动条 */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.pointCloud-helper-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.pointCloud-helper-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.pointCloud-helper-panel::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 3px;
+}
+
+.pointCloud-helper-panel::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.control-panel-wrapper {
+    position: relative;
+    width: 100%;
+    padding-left: 0px;
+    margin-bottom: 30px;
+}
+
+.crane-list-container {
+    -webkit-scrollbar: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.pointCloud-helper-panel .btn-group {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}

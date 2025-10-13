@@ -1,0 +1,8 @@
+.left-panel-area {
+    position: fixed;
+    top: 64px;
+    left: 25px;
+    height: 100%;
+
+    z-index: 1;
+}

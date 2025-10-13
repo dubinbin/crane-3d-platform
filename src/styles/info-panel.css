@@ -1,0 +1,18 @@
+
+
+.info-panel {
+    position: fixed;
+    top: 0px;
+    bottom: 0;
+    right: 10px;
+    width: 380px;
+    min-width: 300px;
+    z-index: 1;
+    padding: 10px;
+}
+
+.info-panel h1 {
+    font-size: 20px;
+    font-weight: bold;
+    color: #ffffff;
+}

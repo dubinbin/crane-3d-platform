@@ -1,0 +1,77 @@
+.current-crane-logs {
+    border-radius: 0px 39px 0px 25px;
+    border: 30px solid #ffffff;
+    border-image: url('../assets/border.png') 51 38 21 132;
+    border-width: 50px 46px 13px 64px;
+    box-sizing: border-box;
+    height: 400px;
+    position: relative;
+}
+
+.current-crane-logs-title {
+    position: absolute;
+    top: -35px;
+    left: 20px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: bold;
+    color: #ffffff;
+}
+
+.current-crane-logs-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+/* 自动滚动动画 */
+.logs-scroll-content {
+    animation: scroll-up 60s linear infinite;
+    will-change: transform;
+}
+
+@keyframes scroll-up {
+    0% {
+        transform: translateY(0);
+    }
+    100% {
+        transform: translateY(-50%);
+    }
+}
+
+/* 鼠标悬停时暂停动画 */
+.current-crane-logs-wrapper:hover .logs-scroll-content {
+    animation-play-state: paused;
+}
+
+.logs-item {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 8px 15px;
+    padding: 12px;
+    margin-bottom: 10px;
+    background: rgba(6, 56, 181, 0.4);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: background 0.3s ease;
+}
+
+.logs-item:hover {
+    background: rgba(6, 56, 181, 0.6);
+}
+
+.logs-item-title {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0;
+    font-weight: 500;
+}
+
+.logs-item-content {
+    font-size: 13px;
+    color: #ffffff;
+    margin: 0;
+    font-weight: 600;
+}
+
