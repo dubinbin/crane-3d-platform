@@ -1,0 +1,85 @@
+.crane-info-tooltip {
+  position: fixed;
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  color: white;
+  z-index: 10000;
+  min-width: 280px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.crane-info-tooltip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.crane-info-tooltip-header h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #4caf50;
+  font-weight: 600;
+}
+
+.crane-info-tooltip .close-btn {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  line-height: 20px;
+  transition: color 0.2s;
+}
+
+.crane-info-tooltip .close-btn:hover {
+  color: #f44336;
+}
+
+.crane-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.crane-info-content .info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.crane-info-content .label {
+  color: #999;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+
+.crane-info-content .value {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+}
+

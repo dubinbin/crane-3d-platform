@@ -33,7 +33,7 @@
     animation: slideDown 0.3s ease;
     border-radius: 0px 39px 0px 25px;
     border: 30px solid #ffffff;
-    border-image: url('../assets/border.png') 51 38 21 132;
+    border-image: url('../assets/border.png') 51 38 32 132;
     border-width: 30px 28px 21px 30px;
 }
 

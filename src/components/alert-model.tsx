@@ -12,6 +12,7 @@ export interface AlertOptions {
   title?: string;
   message: string;
   type?: "danger" | "warning" | "info" | "success";
+  component?: React.ReactNode;
   duration?: number; // 自动关闭时间（毫秒），0 表示不自动关闭
 }
 
@@ -27,6 +28,7 @@ export interface AlertModalRef {
 
 const AlertModal = forwardRef<AlertModalRef>((_, ref) => {
   const [isVisible, setIsVisible] = useState(false);
+  const [component, setComponent] = useState<React.ReactNode>(null);
   const [alertData, setAlertData] = useState<AlertOptions>({
     title: "ALERT",
     message: "",
@@ -37,6 +39,7 @@ const AlertModal = forwardRef<AlertModalRef>((_, ref) => {
   // 暴露给父组件的方法
   useImperativeHandle(ref, () => ({
     show: (options: AlertOptions) => {
+      setComponent(options.component);
       setAlertData({
         title: options.title || "ALERT",
         message: options.message,
@@ -78,6 +81,7 @@ const AlertModal = forwardRef<AlertModalRef>((_, ref) => {
             </div>
             <div className="alert-body">
               <p className="alert-message">{alertData.message}</p>
+              {component}
             </div>
           </div>
         </div>

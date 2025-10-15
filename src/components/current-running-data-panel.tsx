@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import "../styles/current-running-data-panel.css";
+import { useStore } from "../store";
 
 export default function CurrentCraneRunningDataPanel() {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleString());
+  const currentCrane = useStore((state) => state.currentCrane);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -19,7 +21,7 @@ export default function CurrentCraneRunningDataPanel() {
             <p className="current-time">{currentTime}</p>
             <div className="inner">
               <div className="item">
-                <h4>12h</h4>
+                <h4>{currentCrane?.workTime}</h4>
                 <span>
                   <i
                     className="icon-dot"
@@ -29,7 +31,7 @@ export default function CurrentCraneRunningDataPanel() {
                 </span>
               </div>
               <div className="item">
-                <h4>钟师傅</h4>
+                <h4>{currentCrane?.workerName}</h4>
                 <span>
                   <i
                     className="icon-dot"
@@ -39,7 +41,7 @@ export default function CurrentCraneRunningDataPanel() {
                 </span>
               </div>
               <div className="item">
-                <h4>TC1</h4>
+                <h4>{currentCrane?.craneId}</h4>
                 <span>
                   <i
                     className="icon-dot"

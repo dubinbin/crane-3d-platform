@@ -1,11 +1,12 @@
 import { useEffect, useRef } from "react";
 import { PointCloudViewer } from "../utils/pointcloud-viewer";
-import { UIController } from "../utils/ui-controller";
+import { EventBus, EventName } from "../utils/event";
+import { AlertModalManager } from "./alert-model";
+import AddCraneDialog from "./add-crane-dialog";
 
 export default function Three3DView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<PointCloudViewer | null>(null);
-  const uiControllerRef = useRef<UIController | null>(null);
 
   useEffect(() => {
     // 确保容器已挂载
@@ -51,13 +52,8 @@ export default function Three3DView() {
     const viewer = new PointCloudViewer("viewer-container");
     viewerRef.current = viewer;
 
-    // 初始化UI控制器
-    const uiController = new UIController(viewer);
-    uiControllerRef.current = uiController;
-
-    // 将viewer和uiController暴露到全局作用域，供HTML中的内联事件使用
+    // 将viewer暴露到全局作用域
     window.viewer = viewer;
-    window.uiController = uiController;
 
     console.log("Three3DView 初始化完成");
 
@@ -71,7 +67,23 @@ export default function Three3DView() {
         currentContainer.innerHTML = "";
       }
       delete window.viewer;
-      delete window.uiController;
+    };
+  }, []);
+
+  // event handler
+  useEffect(() => {
+    EventBus.on(EventName.ADD_CRANE, () => {
+      AlertModalManager.current?.show({
+        title: "创建塔吊",
+        message: "",
+        type: "info",
+        duration: 0,
+        component: <AddCraneDialog />,
+      });
+    });
+
+    return () => {
+      EventBus.off(EventName.ADD_CRANE, () => {});
     };
   }, []);
 

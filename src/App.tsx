@@ -4,6 +4,7 @@ import Header from "./components/header";
 import InfoPanel from "./components/info-panel";
 import LeftPanelArea from "./components/left-panel-area";
 import AlertModal from "./components/alert-model";
+import CraneInfoTooltip from "./components/crane-info-tooltip";
 /**
  * 主应用程序组件
  * 负责初始化应用程序和协调各个模块
@@ -23,6 +24,9 @@ function App() {
       <InfoPanel />
 
       <AlertModal />
+
+      {/* 塔吊点击信息提示框 */}
+      <CraneInfoTooltip />
     </div>
   );
 }

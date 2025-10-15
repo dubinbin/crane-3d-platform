@@ -78,29 +78,46 @@
 
 .crane-params-info-container {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     justify-content: space-between;
     align-items: center;
     width: 85%;
+    gap: 10px;
     margin: 0 auto;
 }
 
+.crane-params-info-container .item {
+    background-color: #8c8c8c58;
+    border-radius: 5px;
+    padding: 10px;
+    width: 100%;
+}
+
 .crane-params-info-container p {
-    font-size: 14px;
+    font-size: 13px;
     font-weight: bold;
     color: #ffffff;
     width: 100%;
-    padding: 10px;
-    background-color: #8c8c8c28;
     border-radius: 5px;
     text-align: center;
     margin-bottom: 10px;
 }
 
+.crane-params-info-container i {
+    font-size: 14px;
+    font-weight: bold;
+    color: #ffffff;
+    text-align: center;
+    font-style: normal;
+}
+
+
 .current-crane-main-wrapper {
     position: relative;
     background: #00000021;
     backdrop-filter: blur(5px);
+    border-radius: 0px 30px 0px 21px;
+    overflow: hidden;
 }
 
 .current-crane-info-title {

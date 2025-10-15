@@ -1,6 +1,8 @@
+import { useStore } from "../store";
 import "../styles/current-crane-data.css";
 
 export default function CurrentDataPanel() {
+  const cranes = useStore((state) => state.cranes);
   return (
     <div className="current-crane-main-wrapper">
       <div className="current-crane-data">
@@ -8,7 +10,7 @@ export default function CurrentDataPanel() {
           <div className="overview panel">
             <div className="inner">
               <div className="item">
-                <h4>4</h4>
+                <h4>{cranes.length}</h4>
                 <span>
                   <i
                     className="icon-dot"
@@ -17,28 +19,19 @@ export default function CurrentDataPanel() {
                   塔吊总数
                 </span>
               </div>
+
               <div className="item">
-                <h4>1</h4>
+                <h4>{cranes.length}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#6acca3" }}
                   ></i>
-                  塔吊新增
+                  正常运行塔吊
                 </span>
               </div>
               <div className="item">
-                <h4>3</h4>
-                <span>
-                  <i
-                    className="icon-dot"
-                    style={{ backgroundColor: "#6acca3" }}
-                  ></i>
-                  运营塔吊
-                </span>
-              </div>
-              <div className="item">
-                <h4>1</h4>
+                <h4>0</h4>
                 <span>
                   <i
                     className="icon-dot"

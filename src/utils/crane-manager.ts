@@ -5,6 +5,8 @@
 
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import type { CraneInfo } from '../types';
 
 export interface CraneUserData {
   id: string;
@@ -17,13 +19,13 @@ export interface CraneUserData {
   rotationAngle: number;
   armPitchAngle: number;
   ropeLength: number;
+  label: CSS2DObject | null;
 }
 
 export class CraneManager {
   private scene: THREE.Scene;
   private fbxLoader: FBXLoader;
   private cranes: THREE.Object3D<THREE.Object3DEventMap>[] = []; // 存储所有塔吊实例
-  private craneCounter: number = 0; // 塔吊计数器
   private craneTemplate: THREE.Object3D<THREE.Object3DEventMap> | null = null; // 塔吊模板
 
   constructor(scene: THREE.Scene, fbxLoader: FBXLoader) {
@@ -178,25 +180,41 @@ export class CraneManager {
   }
 
   /**
+   * 创建塔吊名称标签
+   * @param name - 塔吊名称
+   * @returns CSS2DObject 标签
+   */
+  private createLabel(name: string): CSS2DObject {
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'crane-label';
+    labelDiv.textContent = name;
+    labelDiv.style.color = '#1300DEFF';
+    labelDiv.style.fontSize = '30px';
+    labelDiv.style.fontWeight = 'bold';
+    labelDiv.style.textShadow = '2px 2px 4px rgba(0, 0, 0, 0.8)';
+    labelDiv.style.fontFamily = 'Arial, sans-serif';
+    labelDiv.style.pointerEvents = 'none';
+    labelDiv.style.userSelect = 'none';
+
+    const label = new CSS2DObject(labelDiv);
+    return label;
+  }
+
+  /**
    * 添加塔吊
-   * @param x - X坐标
-   * @param y - Y坐标
-   * @param z - Z坐标
+   * @param craneData - 塔吊数据
    * @returns 新添加的塔吊对象
    */
-  addCrane(x: number = 0, y: number = 0, z: number = 0): THREE.Object3D | null {
+  addCrane(craneData: CraneInfo): THREE.Object3D | null {
     if (!this.craneTemplate) {
       console.error('塔吊模板未加载完成');
       return null;
     }
-
-    this.craneCounter++;
-    const craneId = `crane_${this.craneCounter}`;
    
     // 克隆模板创建新的塔吊
     const newCrane = this.craneTemplate.clone();
     newCrane.visible = true;
-    newCrane.position.set(x, y, z);
+    newCrane.position.set(craneData.position?.x || 0, craneData.position?.y || 0, craneData.position?.z || 0);
    
     // 查找并保存塔吊上半部分控制器
     let topController: THREE.Object3D | null = null;
@@ -216,20 +234,27 @@ export class CraneManager {
     });
    
     // 创建吊绳和钩子
-    const initialRopeLength = 3.0;
+    const initialRopeLength = craneData.currentRopeLength || 3.0;
     const ropeSystem = this.createRope(hooksHeader, initialRopeLength);
 
+    // 创建名称标签
+    const label = this.createLabel(craneData.name);
+    // 将标签放置在塔吊上方
+    label.position.set(0, 2000, 0); // Z轴向上偏移3个单位
+    newCrane.add(label);
+
     const userData: CraneUserData = { 
-      id: craneId, 
-      name: `塔吊 ${this.craneCounter}`,
+      id: craneData.id, 
+      name: craneData.name,
       topController: topController,
       neckController: neckController,
       hooksHeader: hooksHeader,
       rope: ropeSystem ? ropeSystem.rope : null,
       hook: ropeSystem ? ropeSystem.hook : null,
-      rotationAngle: 0, // 初始旋转角度（水平）
-      armPitchAngle: 0, // 初始俯仰角度（上下）
-      ropeLength: 3.0 // 初始吊绳长度
+      rotationAngle: craneData.currentRotationAngle || 0, // 初始旋转角度（水平）
+      armPitchAngle: craneData.currentArmPitchAngle || 0, // 初始俯仰角度（上下）
+      ropeLength: craneData.currentRopeLength || 3.0, // 初始吊绳长度
+      label: label
     };
     
     newCrane.userData = userData;
@@ -242,7 +267,7 @@ export class CraneManager {
       this.updateRopePosition(newCrane);
     }
    
-    console.log(`添加塔吊: ${craneId} 位置: (${x}, ${y}, ${z})`);
+    console.log(`添加塔吊: ${craneData.id} 位置: (${craneData.position?.x}, ${craneData.position?.y}, ${craneData.position?.z})`);
     if (topController) {
       console.log('塔吊上半部分控制器已找到并保存');
     } else {
@@ -279,6 +304,12 @@ export class CraneManager {
         this.scene.remove(userData.hook);
         userData.hook = null;
       }
+
+      // 移除标签
+      if (userData.label) {
+        crane.remove(userData.label);
+        userData.label = null;
+      }
      
       this.scene.remove(crane);
       this.cranes.splice(index, 1);
@@ -300,10 +331,13 @@ export class CraneManager {
       if (userData.hook) {
         this.scene.remove(userData.hook);
       }
+      // 移除标签
+      if (userData.label) {
+        crane.remove(userData.label);
+      }
       this.scene.remove(crane);
     });
     this.cranes = [];
-    this.craneCounter = 0;
     console.log('清除所有塔吊');
   }
 
@@ -322,20 +356,6 @@ export class CraneManager {
       this.updateRopePosition(crane);
      
       console.log(`更新塔吊 ${craneId} ${axis} 位置: ${value}`);
-    }
-  }
-
-  /**
-   * 更新塔吊缩放
-   * @param craneId - 塔吊ID
-   * @param value - 缩放值
-   */
-  updateCraneScale(craneId: string, value: number): void {
-    const crane = this.cranes.find(c => (c.userData as CraneUserData).id === craneId);
-    if (crane) {
-      const scale = parseFloat(value.toString());
-      crane.scale.setScalar(scale);
-      console.log(`更新塔吊 ${craneId} 缩放: ${value}`);
     }
   }
 

@@ -1,15 +1,13 @@
 import { useRef, useState } from "react";
-// import { ColorUtils } from "../utils/file-util";
 import { PCDParser } from "../utils/pcd-parser";
 import "../styles/pointCloud-helper-panel.css";
-import { AlertModalManager } from "./alert-model";
+import CraneControlPanel from "./crane-control-panel";
+import { ArrowsAltOutlined, ShrinkOutlined } from "@ant-design/icons";
 
 export default function PointCloudHelperPanel() {
   const controlPanelRef = useRef<HTMLDivElement>(null);
   const [iscollapsed, setIscollapsed] = useState(false);
-  //   const [pointSize, setPointSize] = useState(0.01);
   const [densityValue, setDensityValue] = useState("标准");
-  //   const [backgroundColor, setBackgroundColor] = useState("rgba(1,10,24,1)");
 
   const handlePanelToggle = () => {
     setIscollapsed(!iscollapsed);
@@ -17,30 +15,10 @@ export default function PointCloudHelperPanel() {
 
     if (iscollapsed) {
       if (controlPanel) controlPanel.classList.remove("collapsed");
-      AlertModalManager.current?.show({
-        title: "警告",
-        message: "TC1和TC有碰撞风险，请立即调整",
-        type: "danger",
-        duration: 10000,
-      });
     } else {
       if (controlPanel) controlPanel.classList.add("collapsed");
     }
   };
-
-  //   const changeColor = (e: React.ChangeEvent<HTMLInputElement>) => {
-  //     const color = e.target.value;
-  //     const hexColor = ColorUtils.hexToThreeColor(color);
-  //     window?.viewer?.setBackgroundColor(hexColor);
-  //     console.log("背景颜色:", hexColor);
-  //     setBackgroundColor(color);
-  //   };
-
-  //   const bindPointSizeControl = (e: React.ChangeEvent<HTMLInputElement>) => {
-  //     const size = parseFloat(e.target.value);
-  //     setPointSize(size);
-  //     window?.viewer?.setPointSize(size);
-  //   };
 
   const bindPointDensityControl = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = parseInt(e.target.value);
@@ -78,11 +56,11 @@ export default function PointCloudHelperPanel() {
           title="折叠/展开控制面板"
           onClick={handlePanelToggle}
         >
-          {iscollapsed ? "☰" : "--"}
+          {iscollapsed ? <ArrowsAltOutlined /> : <ShrinkOutlined />}
         </div>
 
         <div className="panel-header">
-          <h3 style={{ margin: 0, color: "#FFFFFFFF" }}>🔬 塔吊点云设置</h3>
+          <h3 style={{ margin: 0, color: "#FFFFFFFF" }}>🔬 设置面板</h3>
         </div>
 
         <div className="control-content">
@@ -115,9 +93,9 @@ export default function PointCloudHelperPanel() {
             />
           </div> */}
 
-          <div className="control-group">
-            <label>
-              点云密度
+          <div className="crane-control-panel">
+            <label className="panel-header">
+              <h4>点云密度</h4>
               <span className="value-display" id="density-value">
                 {densityValue}
               </span>
@@ -144,37 +122,7 @@ export default function PointCloudHelperPanel() {
             </select>
           </div>
 
-          <div className="btn-group">
-            <button id="reset-camera" className="btn">
-              🔄 重置视角
-            </button>
-            <button id="add-crane" className="btn">
-              🏗️ 添加塔吊
-            </button>
-            <button id="clear-cranes" className="btn">
-              🗑️ 清除所有塔吊
-            </button>
-          </div>
-
-          <div
-            className="control-group"
-            id="crane-controls"
-            style={{ display: "none" }}
-          >
-            <label>塔吊控制</label>
-            <div
-              id="crane-list"
-              className="crane-list-container"
-              style={{
-                maxHeight: "200px",
-                overflowY: "auto",
-                background: "rgba(255,255,255,0.1)",
-                padding: "10px",
-                borderRadius: "6px",
-                marginTop: "10px",
-              }}
-            ></div>
-          </div>
+          <CraneControlPanel />
         </div>
       </div>
     </div>

@@ -6,9 +6,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { PCDParser } from './pcd-parser';
 import { FileUtils } from './file-util';
-import { CraneManager } from './crane-manager';
+import { CraneManager, type CraneUserData } from './crane-manager';
+import { EventBus, EventName } from './event';
+import { useStore } from '../store';
 
 interface ViewerOptions {
   width?: number;
@@ -23,10 +26,13 @@ export class PointCloudViewer {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private renderer: THREE.WebGLRenderer;
+  private labelRenderer: CSS2DRenderer;
   private controls: OrbitControls;
   private pointCloud: THREE.Points | null = null;
   private fbxLoader: FBXLoader;
   private craneManager: CraneManager;
+  private raycaster: THREE.Raycaster;
+  private mouse: THREE.Vector2;
 
   constructor(containerId: string, options: ViewerOptions = {}) {
     const containerElement = document.getElementById(containerId);
@@ -49,13 +55,16 @@ export class PointCloudViewer {
 
     // 创建相机
     this.camera = new THREE.PerspectiveCamera(
-      75,
-      this.options.width / this.options.height,
+      20,
+      this.options.width / this.options.height ,
       0.1,
       1000
     );
-    this.camera.position.set(0, 0, 15);
-
+    
+    // 设置Z轴为向上方向（默认是Y轴）
+    this.camera.up.set(0, 0, 1);
+    this.camera.position.set(0, -50, 0);
+    
     this.fbxLoader = new FBXLoader();
 
     // 创建渲染器
@@ -69,6 +78,15 @@ export class PointCloudViewer {
 
     this.container.appendChild(this.renderer.domElement);
 
+    // 创建 CSS2D 渲染器用于文字标签
+    this.labelRenderer = new CSS2DRenderer();
+    this.labelRenderer.setSize(this.options.width, this.options.height);
+    this.labelRenderer.domElement.style.position = 'absolute';
+    this.labelRenderer.domElement.style.top = '0';
+    this.labelRenderer.domElement.style.left = '0';
+    this.labelRenderer.domElement.style.pointerEvents = 'none';
+    this.container.appendChild(this.labelRenderer.domElement);
+
     // 初始化塔吊管理器
     this.craneManager = new CraneManager(this.scene, this.fbxLoader);
     this.craneManager.loadFBX();
@@ -79,12 +97,19 @@ export class PointCloudViewer {
     this.controls.dampingFactor = 0.05;
     this.controls.target.set(0, 0, 0);
 
+    // 初始化 Raycaster 和鼠标位置
+    this.raycaster = new THREE.Raycaster();
+    this.mouse = new THREE.Vector2();
+
+    // 添加点击事件监听
+    this.setupClickInteraction();
+
     // 添加强光照系统
     this.setupLighting();
 
     // 添加坐标轴
-    const axesHelper = new THREE.AxesHelper(5);
-    this.scene.add(axesHelper);
+    // const axesHelper = new THREE.AxesHelper(5);
+    // this.scene.add(axesHelper);
 
     // 开始渲染
     this.animate();
@@ -105,13 +130,94 @@ export class PointCloudViewer {
   }
 
   /**
+   * 设置点击交互
+   */
+  private setupClickInteraction(): void {
+    this.renderer.domElement.addEventListener('click', (event) => {
+      this.onCanvasClick(event);
+    });
+
+    // 可选：添加悬停效果
+    this.renderer.domElement.addEventListener('mousemove', (event) => {
+      this.onCanvasMouseMove(event);
+    });
+  }
+
+  /**
+   * 处理画布点击事件
+   */
+  private onCanvasClick(event: MouseEvent): void {
+    // 计算鼠标在归一化设备坐标中的位置 (-1 to +1)
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    // 更新射线
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    // 获取所有塔吊对象
+    const cranes = this.craneManager.getCranes();
+    
+    // 检测射线与塔吊的交集
+    const intersects = this.raycaster.intersectObjects(cranes, true);
+
+    if (intersects.length > 0) {
+      // 找到被点击的塔吊根对象
+      let clickedCrane = intersects[0].object;
+      while (clickedCrane.parent && !cranes.includes(clickedCrane)) {
+        clickedCrane = clickedCrane.parent;
+      }
+
+      if (cranes.includes(clickedCrane)) {
+        const craneId = (clickedCrane.userData as unknown as CraneUserData).id;
+        
+        // 从 store 中获取塔吊信息
+        const craneInfo = useStore.getState().cranes.find(c => c.id === craneId);
+        
+        if (craneInfo) {
+          console.log('点击塔吊:', craneInfo);
+          
+          // 发出事件
+          EventBus.emit(EventName.CRANE_CLICKED, {
+            crane: craneInfo,
+            screenPosition: {
+              x: event.clientX,
+              y: event.clientY
+            }
+          });
+        }
+      }
+    }
+  }
+
+  /**
+   * 处理鼠标移动事件（可选：用于悬停高亮）
+   */
+  private onCanvasMouseMove(event: MouseEvent): void {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const cranes = this.craneManager.getCranes();
+    const intersects = this.raycaster.intersectObjects(cranes, true);
+
+    // 改变鼠标样式
+    if (intersects.length > 0) {
+      this.renderer.domElement.style.cursor = 'pointer';
+    } else {
+      this.renderer.domElement.style.cursor = 'default';
+    }
+  }
+
+  /**
    * 设置光照系统
    */
   private setupLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
     this.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
     directionalLight.position.set(10, 10, 5);
     this.scene.add(directionalLight);
 
@@ -123,6 +229,16 @@ export class PointCloudViewer {
     const directionalLight3 = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight3.position.set(0, -10, 10);
     this.scene.add(directionalLight3);
+  }
+
+  public flipTheMapView(): void {
+    if (!this.pointCloud) return;
+    const box = new THREE.Box3().setFromObject(this.pointCloud);
+    const size = box.getSize(new THREE.Vector3());
+    const maxSize = Math.max(size.x, size.y, size.z);
+    const distance = maxSize * 1.5;
+    this.camera.position.set(0, 0, distance);
+    this.controls.update();
   }
 
   /**
@@ -304,7 +420,8 @@ export class PointCloudViewer {
     this.scene.add(this.pointCloud);
 
     const distance = maxSize * scale * 1.5;
-    this.camera.position.set(0, 0, distance);
+    // 使用Y轴作为观察距离，因为Z轴是向上方向
+    this.camera.position.set(0, -distance, 0);
     this.camera.lookAt(0, 0, 0);
     this.controls.update();
 
@@ -343,7 +460,8 @@ export class PointCloudViewer {
       const maxSize = Math.max(size.x, size.y, size.z);
       const distance = maxSize * 1.5;
 
-      this.camera.position.set(0, 0, distance);
+      // 使用Y轴作为观察距离，因为Z轴是向上方向
+      this.camera.position.set(0, -distance, 0);
       this.camera.lookAt(0, 0, 0);
       this.controls.target.set(0, 0, 0);
       this.controls.update();
@@ -360,6 +478,7 @@ export class PointCloudViewer {
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height);
+    this.labelRenderer.setSize(width, height);
   }
 
   /**
@@ -369,6 +488,7 @@ export class PointCloudViewer {
     requestAnimationFrame(this.animate);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
+    this.labelRenderer.render(this.scene, this.camera);
   };
 
   /**
