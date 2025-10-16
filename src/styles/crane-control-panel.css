@@ -68,6 +68,10 @@
   transform: translateY(-1px);
 }
 
+.crane-control-panel .panel-action-button {
+   background-color: transparent;
+}
+
 .crane-list {
   max-height: 600px;
   overflow-y: auto;

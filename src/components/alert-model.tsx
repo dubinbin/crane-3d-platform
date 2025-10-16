@@ -5,6 +5,7 @@ import {
   useCallback,
   createRef,
   type RefObject,
+  useRef,
 } from "react";
 import "../styles/alert-modal.css";
 
@@ -35,6 +36,7 @@ const AlertModal = forwardRef<AlertModalRef>((_, ref) => {
     type: "danger",
     duration: 3000,
   });
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 暴露给父组件的方法
   useImperativeHandle(ref, () => ({
@@ -50,18 +52,25 @@ const AlertModal = forwardRef<AlertModalRef>((_, ref) => {
 
       // 自动关闭
       if (options.duration && options.duration > 0) {
-        setTimeout(() => {
+        timer.current = setTimeout(() => {
           setIsVisible(false);
         }, options.duration);
       }
     },
     hide: () => {
       setIsVisible(false);
+      if (timer.current) {
+        clearTimeout(timer.current);
+      }
     },
   }));
 
   const handleClose = useCallback(() => {
     setIsVisible(false);
+    setComponent(null);
+    if (timer.current) {
+      clearTimeout(timer.current);
+    }
   }, []);
 
   if (!isVisible) return null;

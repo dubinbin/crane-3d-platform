@@ -42,6 +42,8 @@ export default function CraneInfoTooltip() {
       armInclinationAngle: 0,
       workTime: "12h",
       workerName: "钟师傅",
+      craneType: crane.type,
+      onlineStatus: crane.onlineStatus,
     });
   };
 

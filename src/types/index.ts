@@ -1,4 +1,7 @@
-export type CraneType = "boom" | "floor";
+export enum CraneType {
+    BOOM = "boom", // 动臂式塔吊
+    FLOOR = "floor", // 固定式塔吊
+}
 
 export interface CraneInfo {
     id: string;
@@ -22,9 +25,18 @@ export interface CraneInfo {
     currentArmPitchAngle?: number;
     /** 吊绳长度 */
     currentRopeLength?: number;
+    /** 在线状态 */
+    onlineStatus: OnlineStatus;
+}
+
+export enum OnlineStatus {  
+    ONLINE = "online",
+    OFFLINE = "offline",
 }
 
 export interface CurrentWorkCraneData {
+    // 在线状态
+    onlineStatus: OnlineStatus;
     // 工作时长
     workTime?: string;
     // 操作人
@@ -49,6 +61,7 @@ export interface CurrentWorkCraneData {
     swingWidth?: number;
     // 大臂倾角
     armInclinationAngle?: number;
-
+    // 塔吊类型
+    craneType?: CraneType;
 
 }

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import type { CraneInfo } from '../types';
+import { CraneType, type CraneInfo, type OnlineStatus } from '../types';
 
 export interface CraneUserData {
   id: string;
@@ -20,14 +20,15 @@ export interface CraneUserData {
   armPitchAngle: number;
   ropeLength: number;
   label: CSS2DObject | null;
+  onlineStatus: OnlineStatus;
 }
 
 export class CraneManager {
   private scene: THREE.Scene;
   private fbxLoader: FBXLoader;
   private cranes: THREE.Object3D<THREE.Object3DEventMap>[] = []; // 存储所有塔吊实例
-  private craneTemplate: THREE.Object3D<THREE.Object3DEventMap> | null = null; // 塔吊模板
-
+  private boomCraneTemplate: THREE.Object3D<THREE.Object3DEventMap> | null = null; // 动臂式塔吊模板
+  private floorCraneTemplate: THREE.Object3D<THREE.Object3DEventMap> | null = null; // 固定式塔吊模板
   constructor(scene: THREE.Scene, fbxLoader: FBXLoader) {
     this.scene = scene;
     this.fbxLoader = fbxLoader;
@@ -41,9 +42,31 @@ export class CraneManager {
       'https://file.hkcrc.live/crane3.fbx',
       (object) => {
         // 保存原始模型作为模板
-        this.craneTemplate = object.clone();
-        this.setupCraneTemplate(this.craneTemplate);
+        this.boomCraneTemplate = object.clone();
+        this.setupCraneTemplate(this.boomCraneTemplate);
         console.log('塔吊模板加载完成');
+      },
+      (xhr) => {
+        console.log('FBX加载进度:', (xhr.loaded / xhr.total) * 100 + '% loaded');
+      },
+      (error) => {
+        console.error('FBX加载错误:', error);
+      }
+    );
+  }
+
+
+  /**
+     * 加载FBX塔吊模型
+     */
+  loadFloorFBX(): void {
+    this.fbxLoader.load(
+      'https://file.hkcrc.live/floor_type.fbx',
+      (object) => {
+        // 保存原始模型作为模板
+        this.floorCraneTemplate = object.clone();
+        this.setupCraneTemplate(this.floorCraneTemplate);
+        console.log('固定式塔吊模板加载完成');
       },
       (xhr) => {
         console.log('FBX加载进度:', (xhr.loaded / xhr.total) * 100 + '% loaded');
@@ -145,9 +168,27 @@ export class CraneManager {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
         if (mesh.material) {
-          const material = mesh.material as THREE.Material;
-          material.transparent = false;
-          material.opacity = 1.0;
+          // 获取原始材质的颜色
+          const oldMaterial = mesh.material as THREE.MeshBasicMaterial;
+          const originalColor = oldMaterial.color ? oldMaterial.color.clone() : new THREE.Color(0xcccccc);
+          
+          // 创建新的标准材质，可以接收光照
+          const newMaterial = new THREE.MeshStandardMaterial({
+            color: originalColor,
+            metalness: 0.3,  // 金属度
+            roughness: 0.7,  // 粗糙度
+            transparent: false,
+            opacity: 1.0,
+            // 如果原材质有贴图，也复制过来
+            map: oldMaterial.map || null,
+          });
+          
+          // 替换材质
+          mesh.material = newMaterial;
+          
+          // 确保网格可以投射和接收阴影
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
         }
       }
     });
@@ -206,79 +247,115 @@ export class CraneManager {
    * @returns 新添加的塔吊对象
    */
   addCrane(craneData: CraneInfo): THREE.Object3D | null {
-    if (!this.craneTemplate) {
+    if (!this.boomCraneTemplate || !this.floorCraneTemplate) {
       console.error('塔吊模板未加载完成');
       return null;
     }
-   
+    
+    let craneTemplate: THREE.Object3D<THREE.Object3DEventMap> | null = null;
+    if (craneData.type === CraneType.FLOOR) {
+      craneTemplate = this.floorCraneTemplate?.clone();
+    } else {
+      craneTemplate = this.boomCraneTemplate?.clone();
+    }
     // 克隆模板创建新的塔吊
-    const newCrane = this.craneTemplate.clone();
+    const newCrane = craneTemplate?.clone();
+    if (!newCrane) {
+      console.error('克隆塔吊模板失败');
+      return null;
+    }
     newCrane.visible = true;
     newCrane.position.set(craneData.position?.x || 0, craneData.position?.y || 0, craneData.position?.z || 0);
-   
-    // 查找并保存塔吊上半部分控制器
-    let topController: THREE.Object3D | null = null;
-    let neckController: THREE.Object3D | null = null;
-    let hooksHeader: THREE.Object3D | null = null;
-    newCrane.traverse((child) => {
-      console.log('child.name', child.name);
-      if (child.name === 'hooks-angle') {
-        topController = child;
-      }
-      if (child.name === 'hooks-main') {
-        neckController = child;
-      }
-      if (child.name === 'hooks') {
-        hooksHeader = child;
-      }
-    });
-   
-    // 创建吊绳和钩子
-    const initialRopeLength = craneData.currentRopeLength || 3.0;
-    const ropeSystem = this.createRope(hooksHeader, initialRopeLength);
+    newCrane.position.z = 0;
 
-    // 创建名称标签
-    const label = this.createLabel(craneData.name);
-    // 将标签放置在塔吊上方
-    label.position.set(0, 2000, 0); // Z轴向上偏移3个单位
-    newCrane.add(label);
+    if (craneData.type === CraneType.FLOOR) {
+      let topController: THREE.Object3D | null = null;
+      let hooksHeader: THREE.Object3D | null = null;
 
-    const userData: CraneUserData = { 
-      id: craneData.id, 
-      name: craneData.name,
-      topController: topController,
-      neckController: neckController,
-      hooksHeader: hooksHeader,
-      rope: ropeSystem ? ropeSystem.rope : null,
-      hook: ropeSystem ? ropeSystem.hook : null,
-      rotationAngle: craneData.currentRotationAngle || 0, // 初始旋转角度（水平）
-      armPitchAngle: craneData.currentArmPitchAngle || 0, // 初始俯仰角度（上下）
-      ropeLength: craneData.currentRopeLength || 3.0, // 初始吊绳长度
-      label: label
-    };
+      newCrane.traverse((child) => {
+        console.log('child.name', child.name);
+        if (child.name === 'main-arm') {
+          topController = child;
+        }
+        if (child.name === 'main-car') {
+          hooksHeader = child;
+        }
+      });
+
+      // 创建吊绳和钩子
+      const initialRopeLength = craneData.currentRopeLength || 3.0;
+      const ropeSystem = this.createRope(hooksHeader, initialRopeLength);
+
+      // 创建名称标签
+      const label = this.createLabel(craneData.name);
+      // 将标签放置在塔吊上方
+      label.position.set(0, 2000, 0); // Z轴向上偏移3个单位
+      newCrane.add(label);
+
+      const userData: CraneUserData = { 
+        id: craneData.id, 
+        name: craneData.name,
+        topController: topController,
+        hooksHeader: hooksHeader,
+        neckController: null,
+        rope: ropeSystem ? ropeSystem.rope : null,
+        hook: ropeSystem ? ropeSystem.hook : null,
+        rotationAngle: craneData.currentRotationAngle || 0, // 初始旋转角度（水平）
+        armPitchAngle: craneData.currentArmPitchAngle || 0, // 初始俯仰角度（上下）
+        ropeLength: craneData.currentRopeLength || 3.0, // 初始吊绳长度
+        label: label,
+        onlineStatus: craneData.onlineStatus,
+      };
+      newCrane.userData = userData;  
+    } else {
+      // 查找并保存塔吊上半部分控制器
+      let topController: THREE.Object3D | null = null;
+      let neckController: THREE.Object3D | null = null;
+      let hooksHeader: THREE.Object3D | null = null;
+      newCrane.traverse((child) => {
+        console.log('child.name', child.name);
+        if (child.name === 'hooks-angle') {
+          topController = child;
+        }
+        if (child.name === 'hooks-main') {
+          neckController = child;
+        }
+        if (child.name === 'hooks') {
+          hooksHeader = child;
+        }
+      });
     
-    newCrane.userData = userData;
-   
+      // 创建吊绳和钩子
+      const initialRopeLength = craneData.currentRopeLength || 3.0;
+      const ropeSystem = this.createRope(hooksHeader, initialRopeLength);
+
+      // 创建名称标签
+      const label = this.createLabel(craneData.name);
+      // 将标签放置在塔吊上方
+      label.position.set(0, 2000, 0); // Z轴向上偏移3个单位
+      newCrane.add(label);
+
+      const userData: CraneUserData = { 
+        id: craneData.id, 
+        name: craneData.name,
+        topController: topController,
+        neckController: neckController,
+        hooksHeader: hooksHeader,
+        rope: ropeSystem ? ropeSystem.rope : null,
+        hook: ropeSystem ? ropeSystem.hook : null,
+        rotationAngle: craneData.currentRotationAngle || 0, // 初始旋转角度（水平）
+        armPitchAngle: craneData.currentArmPitchAngle || 0, // 初始俯仰角度（上下）
+        ropeLength: craneData.currentRopeLength || 3.0, // 初始吊绳长度
+        label: label,
+        onlineStatus: craneData.onlineStatus,
+      };
+      newCrane.userData = userData;   
+    }
+
     this.scene.add(newCrane);
     this.cranes.push(newCrane);
-   
-    // 初始化吊绳和钩子位置
-    if (ropeSystem) {
-      this.updateRopePosition(newCrane);
-    }
-   
-    console.log(`添加塔吊: ${craneData.id} 位置: (${craneData.position?.x}, ${craneData.position?.y}, ${craneData.position?.z})`);
-    if (topController) {
-      console.log('塔吊上半部分控制器已找到并保存');
-    } else {
-      console.warn('未找到塔吊上半部分控制器 (hooks-angle)');
-    }
 
-    if (neckController) {
-      console.log('塔吊颈部控制器已找到并保存');
-    } else {
-      console.warn('未找到塔吊颈部控制器 (hooks-main)');
-    }
+    this.updateRopePosition(newCrane);
    
     return newCrane;
   }
@@ -412,6 +489,38 @@ export class CraneManager {
     this.updateRopePosition(crane);
    
     console.log(`更新塔吊 ${craneId} 臂膀俯仰角度: ${clampedAngle}°`);
+  }
+
+  /**
+   * 更新小车距离（固定式塔吊专用）
+   * 小车在吊臂上前后移动，带着吊绳和钩子一起移动
+   * @param craneId - 塔吊ID
+   * @param distance - 小车距离（从吊臂尾部开始，正值向前移动）
+   */
+  updateCraneCarDistance(craneId: string, distance: number): void {
+    const crane = this.cranes.find(c => (c.userData as CraneUserData).id === craneId);
+    if (!crane) return;
+    
+    const userData = crane.userData as CraneUserData;
+    if (!userData.hooksHeader) {
+      console.warn(`塔吊 ${craneId} 没有找到小车 (main-car)`);
+      return;
+    }
+
+    // 限制距离范围，避免小车移出吊臂范围
+    let clampedDistance = parseFloat(distance.toString());
+    if (isNaN(clampedDistance)) clampedDistance = 0;
+    clampedDistance = Math.max(0, Math.min(20, clampedDistance)) + 3; // 限制范围0-100
+
+    // 小车沿着吊臂的局部Z轴方向移动
+    // 由于main-car是main-arm的子对象，它会自动跟随main-arm的旋转
+    // 当塔吊旋转时，小车的移动方向也会随之旋转，无需手动计算旋转角度
+    userData.hooksHeader.position.y = -clampedDistance;
+   
+    // 更新吊绳和钩子位置
+    this.updateRopePosition(crane);
+   
+    console.log(`更新塔吊 ${craneId} 小车距离: ${clampedDistance}`);
   }
 
   /**

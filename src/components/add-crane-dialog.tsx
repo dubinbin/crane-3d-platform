@@ -5,11 +5,11 @@ import { useState } from "react";
 import { AlertModalManager } from "./alert-model";
 import "../styles/add-crane-dialog.css";
 import { useStore } from "../store";
-import type { CraneType } from "../types";
+import { CraneType, OnlineStatus } from "../types";
 import { v4 as uuidv4 } from "uuid";
 
 export default function AddCraneDialog() {
-  const [craneType, setCraneType] = useState<CraneType>("boom");
+  const [craneType, setCraneType] = useState<CraneType>(CraneType.BOOM);
   const [craneCode, setCraneCode] = useState<string>("TC1");
   const [craneId, setCraneId] = useState<string>("16");
   const [craneHeight, setCraneHeight] = useState<string>("10");
@@ -47,13 +47,14 @@ export default function AddCraneDialog() {
         socketId: craneId,
         type: craneType,
         position: { x, y, z },
-        radius: Number(craneHeight),
-        height: Number(craneArmLength),
+        radius: Number(craneArmLength),
+        height: Number(craneHeight),
         currentHookHeight: 0,
         currentCarDistance: 0,
         currentRotationAngle: 0,
         currentArmPitchAngle: 0,
         currentRopeLength: 0,
+        onlineStatus: OnlineStatus.OFFLINE,
       };
       const crane = craneManager.addCrane(craneData);
 
@@ -82,9 +83,9 @@ export default function AddCraneDialog() {
       <div className="crane-type-container">
         <div
           className={`boom-type-crane-container ${
-            craneType === "boom" ? "selected-active" : ""
+            craneType === CraneType.BOOM ? "selected-active" : ""
           }`}
-          onClick={() => handleCraneTypeChange("boom")}
+          onClick={() => handleCraneTypeChange(CraneType.BOOM)}
         >
           <img
             className="boom-type-crane"
@@ -98,7 +99,7 @@ export default function AddCraneDialog() {
           className={`floor-type-crane-container ${
             craneType === "floor" ? "selected-active" : ""
           }`}
-          onClick={() => handleCraneTypeChange("floor")}
+          onClick={() => handleCraneTypeChange(CraneType.FLOOR)}
         >
           <img
             className="floor-type-crane"

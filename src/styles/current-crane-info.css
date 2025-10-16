@@ -42,20 +42,27 @@
 
 .info-box p:nth-child(1) {
     position: absolute;
-    bottom: 3vw;
+    bottom: 60px;
     width: 20%;
     font-size: 12px;
-    left: 0.7vw;
+    left: 40px;
     color: #ffffff;
 }
 
 .info-box p:nth-child(2) {
     position: absolute;
-    top: 6.2vw;
+    top: 110px;
     width: 50%;
     font-size: 12px;
-    left: 5vw;
+    left: 85px;
     color: #ffffff;
+}
+
+
+.info-box p.floor-type {
+    position: absolute;
+    top: 32px;
+    left: 90px;
 }
 
 .info-box p:nth-child(3) {
@@ -69,10 +76,10 @@
 
 .info-box p:nth-child(4) {
     position: absolute;
-    top: 3.5vw;
-    width: 20%;
+    top: 30px;
+    width: 50%;
     font-size: 12px;
-    right: 0vw;
+    right: -50px;
     color: #ffffff;
 }
 
@@ -125,12 +132,16 @@
     color: #ffffff;
     text-align: center;
     font-weight: bold;
-    margin-bottom: 10px;
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
     position: absolute;
     top: 25px;
     left: 0;
     width: 100%;
-    height: 100%;
+    height: 25px;
+    align-items: center;
 }
 
 
@@ -177,4 +188,20 @@
     width: 12px;
     height: 12px;
     border-radius: 50%;
+}
+
+.current-crane-main-wrapper .connectOptions {
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    margin: 0 auto;
+    margin-bottom: 20px;
+    margin-top: 30px;
+}
+
+.current-crane-main-wrapper .connectOptions .item {
+    width: 80%;
 }

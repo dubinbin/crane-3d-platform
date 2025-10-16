@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { CraneInfo, CurrentWorkCraneData } from "../types";
+import { OnlineStatus, type CraneInfo, type CurrentWorkCraneData } from "../types";
 
 
 interface State {
@@ -94,6 +94,7 @@ export const useStore = create<State>((set) => ({
     windSpeed: 0,
     swingWidth: 0,
     armInclinationAngle: 0,
+    onlineStatus: OnlineStatus.OFFLINE,
   },
 
   updateCurrentCrane: (crane: CurrentWorkCraneData) => set({ currentCrane: crane }),

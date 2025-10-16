@@ -2,7 +2,12 @@ import { useStore } from "../store";
 import { EventBus, EventName } from "../utils/event";
 import CraneListItem from "./crane-list-item";
 import "../styles/crane-control-panel.css";
-import { Button, Collapse } from "antd";
+import { Button, Collapse, Flex } from "antd";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  DeleteOutlined,
+} from "@ant-design/icons";
 
 export default function CraneControlPanel() {
   const cranes = useStore((state) => state.cranes);
@@ -40,17 +45,35 @@ export default function CraneControlPanel() {
       </div>
 
       <div className="panel-actions">
-        <button className="btn btn-primary" onClick={handleAddCrane}>
-          添加塔吊
-        </button>
-        <button className="btn btn-secondary" onClick={handleResetCamera}>
-          重置相机
-        </button>
-        {cranes.length > 0 && (
-          <button className="btn btn-danger" onClick={handleClearAll}>
-            清除所有
-          </button>
-        )}
+        <Flex gap="small" wrap>
+          <Button
+            color="green"
+            size="middle"
+            variant="outlined"
+            className="panel-action-button"
+            onClick={handleAddCrane}
+          >
+            添加塔吊
+          </Button>
+          <Button
+            color="blue"
+            variant="outlined"
+            className="panel-action-button"
+            onClick={handleResetCamera}
+          >
+            重置相机
+          </Button>
+          {cranes.length > 0 && (
+            <Button
+              color="red"
+              variant="outlined"
+              className="panel-action-button"
+              onClick={handleClearAll}
+            >
+              清除所有
+            </Button>
+          )}
+        </Flex>
       </div>
 
       <div className="crane-list">
@@ -58,10 +81,20 @@ export default function CraneControlPanel() {
           <p className="empty-message">暂无塔吊</p>
         ) : (
           <Collapse
-            style={{ backgroundColor: "#FEFEFE7A" }}
+            style={{
+              backgroundColor: "transparent",
+              border: "0.5px solid #FFFFFF5E",
+            }}
             accordion
             defaultActiveKey={["1"]}
             expandIconPosition="end"
+            expandIcon={(iconProps) =>
+              iconProps.isActive ? (
+                <ArrowUpOutlined style={{ color: "#FFFFFFFF" }} />
+              ) : (
+                <ArrowDownOutlined style={{ color: "#FFFFFFFF" }} />
+              )
+            }
             ghost
           >
             {cranes.map((crane) => (
@@ -71,29 +104,34 @@ export default function CraneControlPanel() {
                   <Button
                     type="text"
                     size="small"
+                    icon={
+                      <DeleteOutlined
+                        size={10}
+                        style={{ color: "#F300009F" }}
+                      />
+                    }
                     style={{
-                      border: "0.5px solid #F30000FF",
                       borderRadius: "12px",
                       padding: "4px 10px",
                     }}
                     danger
                     onClick={() => handleRemoveCrane(crane.id)}
                   >
-                    删除
+                    <p style={{ color: "#F300009F" }}>删除</p>
                   </Button>
                 }
                 header={
                   <p
                     className="crane-name"
                     style={{
-                      color: "#000000FF",
+                      color: "#FFFFFFFF",
                       width: "100%",
                       textAlign: "left",
                       fontWeight: "bold",
                       fontSize: "14px",
                     }}
                   >
-                    {crane.name}
+                    塔吊编号：{crane.name}
                   </p>
                 }
               >

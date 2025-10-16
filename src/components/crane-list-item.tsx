@@ -1,6 +1,7 @@
 import { Input } from "antd";
 import { useStore } from "../store";
 import "../styles/crane-list-item.css";
+import { CraneType } from "../types";
 
 interface CraneListItemProps {
   craneId: string;
@@ -12,6 +13,9 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
   const updateCraneRotation = useStore((state) => state.updateCraneRotation);
   const updateCraneArmPitch = useStore((state) => state.updateCraneArmPitch);
   const updateRopeLength = useStore((state) => state.updateRopeLength);
+  const updateCraneCarDistance = useStore(
+    (state) => state.updateCraneCarDistance
+  );
 
   if (!crane) return null;
 
@@ -40,6 +44,13 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
     updateRopeLength(craneId, value);
     if (window.viewer) {
       window.viewer.getCraneManager().updateRopeLength(craneId, value);
+    }
+  };
+
+  const handleCarDistanceChange = (value: number) => {
+    updateCraneCarDistance(craneId, value);
+    if (window.viewer) {
+      window.viewer.getCraneManager().updateCraneCarDistance(craneId, value);
     }
   };
 
@@ -110,7 +121,7 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
         <Input
           type="range"
           min="0"
-          max="360"
+          max="450"
           step="1"
           value={crane.currentRotationAngle}
           onChange={(e) => handleRotationChange(parseFloat(e.target.value))}
@@ -118,23 +129,45 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
         />
       </div>
 
-      <div className="crane-control">
-        <div className="crane-control-label">
-          <i>臂膀俯仰:</i>
-          <span className="value-display">
-            {crane.currentArmPitchAngle?.toFixed(0)}°
-          </span>
+      {crane.type === CraneType.BOOM ? (
+        <div className="crane-control">
+          <div className="crane-control-label">
+            <i>臂膀俯仰:</i>
+            <span className="value-display">
+              {crane.currentArmPitchAngle?.toFixed(0)}°
+            </span>
+          </div>
+          <Input
+            type="range"
+            min="-90"
+            max="90"
+            step="1"
+            value={crane.currentArmPitchAngle}
+            onChange={(e) => handleArmPitchChange(parseFloat(e.target.value))}
+            className="crane-slider"
+          />
         </div>
-        <Input
-          type="range"
-          min="-90"
-          max="90"
-          step="1"
-          value={crane.currentArmPitchAngle}
-          onChange={(e) => handleArmPitchChange(parseFloat(e.target.value))}
-          className="crane-slider"
-        />
-      </div>
+      ) : (
+        <div className="crane-control">
+          <div className="crane-control-label">
+            <i>小车距离：</i>
+            <span className="value-display">
+              {crane.currentCarDistance?.toFixed(0)}m
+            </span>
+          </div>
+          <Input
+            type="range"
+            min="0"
+            max="60"
+            step="0.1"
+            value={crane.currentCarDistance}
+            onChange={(e) =>
+              handleCarDistanceChange(parseFloat(e.target.value))
+            }
+            className="crane-slider"
+          />
+        </div>
+      )}
 
       <div className="crane-control">
         <div className="crane-control-label">

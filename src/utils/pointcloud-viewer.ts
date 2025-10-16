@@ -75,6 +75,10 @@ export class PointCloudViewer {
     this.renderer.setSize(this.options.width, this.options.height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setClearColor(this.options.backgroundColor, 1);
+    
+    // 启用阴影
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.container.appendChild(this.renderer.domElement);
 
@@ -90,6 +94,7 @@ export class PointCloudViewer {
     // 初始化塔吊管理器
     this.craneManager = new CraneManager(this.scene, this.fbxLoader);
     this.craneManager.loadFBX();
+    this.craneManager.loadFloorFBX();
 
     // 创建控制器
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);

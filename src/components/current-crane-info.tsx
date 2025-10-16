@@ -1,19 +1,86 @@
-import CraneInfo from "../assets/boom_type_crane.png";
+import { Button, Tooltip } from "antd";
+import BoomTypeCrane from "../assets/boom_type_crane.png";
+import FloorTypeCrane from "../assets/floor_type_crane.png";
 import { useStore } from "../store";
 import "../styles/current-crane-info.css";
+import { CraneType, OnlineStatus } from "../types";
+import { DisconnectOutlined, LinkOutlined } from "@ant-design/icons";
+import { AlertModalManager } from "./alert-model";
 
 export default function CurrentCraneInfo() {
   const currentCrane = useStore((state) => state.currentCrane);
+
+  const handleConnect = () => {
+    AlertModalManager.current?.show({
+      title: "连接塔吊控制端",
+      message: "正在连接塔吊控制端，请稍后...",
+      type: "success",
+      duration: 3000,
+    });
+  };
+
+  const handleDisconnect = () => {
+    AlertModalManager.current?.show({
+      title: "断开塔吊控制端",
+      message: "正在断开塔吊控制端，请稍后...",
+      type: "success",
+      duration: 3000,
+    });
+  };
+
   return (
     <div className="current-crane-main-wrapper">
       <div className="current-crane-info">
-        <p className="current-crane-info-title">{currentCrane?.craneId}</p>
+        <div className="current-crane-info-title">
+          {currentCrane?.onlineStatus === OnlineStatus.ONLINE ? (
+            <Tooltip title="在线">
+              <span
+                style={{
+                  color: "#35ED88FF",
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  backgroundColor: "#35ED88FF",
+                }}
+              ></span>
+            </Tooltip>
+          ) : (
+            <Tooltip title="离线">
+              <span
+                style={{
+                  color: "#ed3f35",
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  backgroundColor: "#ed3f35",
+                }}
+              ></span>
+            </Tooltip>
+          )}
+          {currentCrane?.craneId}
+        </div>
         <div className="current-crane-info-wrapper">
           <div className="crane-info-container">
-            <img src={CraneInfo} className="crane-info-img" alt="CraneInfo" />
+            <img
+              src={
+                currentCrane?.craneType === "boom"
+                  ? BoomTypeCrane
+                  : FloorTypeCrane
+              }
+              className="crane-info-img"
+              alt="CraneInfo"
+            />
             <div className="info-box">
               <p>吊物高度：{currentCrane?.craneLoadHeight}米</p>
-              <p>小车距离：{currentCrane?.currentCarDistance}米</p>
+              <p
+                className={
+                  currentCrane?.craneType === CraneType.BOOM
+                    ? "boom-type"
+                    : "floor-type"
+                }
+              >
+                小车距离：{currentCrane?.currentCarDistance}米
+              </p>
               <p>吊钩高度：{currentCrane?.craneHookheight}米</p>
               <p>回转角度: {currentCrane?.currentRotationAngle}度</p>
             </div>
@@ -87,6 +154,33 @@ export default function CurrentCraneInfo() {
                 </span>
               </div>
             </div>
+          </div>
+
+          <div className="connectOptions">
+            {currentCrane?.onlineStatus === OnlineStatus.OFFLINE ? (
+              <Button
+                onClick={handleConnect}
+                type="primary"
+                ghost
+                className="item"
+                variant="filled"
+                icon={<LinkOutlined />}
+              >
+                连接
+              </Button>
+            ) : (
+              <Button
+                onClick={handleDisconnect}
+                type="primary"
+                ghost
+                danger
+                variant="filled"
+                className="item"
+                icon={<DisconnectOutlined />}
+              >
+                断开
+              </Button>
+            )}
           </div>
         </div>
       </div>
