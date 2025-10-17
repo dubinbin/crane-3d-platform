@@ -32,7 +32,7 @@ export default function CraneInfoTooltip() {
     updateCurrentCrane({
       craneId: crane.name,
       craneLoadHeight: crane.currentHookHeight,
-      craneHookheight: crane.currentHookHeight,
+      currentRopeLength: crane.currentRopeLength,
       currentRotationAngle: crane.currentRotationAngle,
       currentCarDistance: crane.currentCarDistance,
       loadMatrix: 30,

@@ -168,19 +168,13 @@ export class CraneManager {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
         if (mesh.material) {
-          // 获取原始材质的颜色
-          const oldMaterial = mesh.material as THREE.MeshBasicMaterial;
-          const originalColor = oldMaterial.color ? oldMaterial.color.clone() : new THREE.Color(0xcccccc);
-          
-          // 创建新的标准材质，可以接收光照
+          // 直接创建红色的标准材质，可以接收光照
           const newMaterial = new THREE.MeshStandardMaterial({
-            color: originalColor,
-            metalness: 0.3,  // 金属度
-            roughness: 0.7,  // 粗糙度
+            color: 0xff0000,  // 红色
+            metalness: 0.3,   // 金属度
+            roughness: 0.7,   // 粗糙度
             transparent: false,
             opacity: 1.0,
-            // 如果原材质有贴图，也复制过来
-            map: oldMaterial.map || null,
           });
           
           // 替换材质

@@ -10,7 +10,6 @@ interface State {
   updateCraneRotation: (id: string, value: number) => void;
   updateCraneArmPitch: (id: string, value: number) => void;
   updateRopeLength: (id: string, value: number) => void;
-  updateCraneHookHeight: (id: string, value: number) => void;
   updateCraneCarDistance: (id: string, value: number) => void;
   clearAllCranes: () => void;
   currentCrane: CurrentWorkCraneData | null;
@@ -59,12 +58,6 @@ export const useStore = create<State>((set) => ({
     )
   })),
 
-  updateCraneHookHeight: (id, value) => set((state) => ({
-    cranes: state.cranes.map(c => 
-      c.id === id ? { ...c, currentHookHeight: value } : c
-    )
-  })),
-
   updateCraneCarDistance: (id, value) => set((state) => ({
     cranes: state.cranes.map(c => 
       c.id === id ? { ...c, currentCarDistance: value } : c
@@ -86,7 +79,7 @@ export const useStore = create<State>((set) => ({
     workerName: '无操作人',
     craneId: 'N/A',
     craneLoadHeight: 0,
-    craneHookheight: 0,
+    currentRopeLength: 0,
     currentRotationAngle: 0,
     currentCarDistance: 0,
     loadMatrix: 0,

@@ -219,21 +219,30 @@ export class PointCloudViewer {
    * 设置光照系统
    */
   private setupLighting(): void {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+    // 环境光：提供基础照明，确保模型不会完全黑暗
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     this.scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(10, 10, 5);
+    // 主光源：从上方照射
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    directionalLight.position.set(10, 10, 10);
+    directionalLight.castShadow = true;
     this.scene.add(directionalLight);
 
-    // 添加多个光源确保mesh充分照亮
-    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 1.0);
-    directionalLight2.position.set(-10, -10, -5);
+    // 补光1：从侧面照射
+    const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight2.position.set(-10, -10, 10);
     this.scene.add(directionalLight2);
 
+    // 补光2：从另一侧照射
     const directionalLight3 = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight3.position.set(0, -10, 10);
+    directionalLight3.position.set(10, -10, 10);
     this.scene.add(directionalLight3);
+
+    // 底部补光：确保底部也能被照亮
+    const directionalLight4 = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight4.position.set(0, 0, -10);
+    this.scene.add(directionalLight4);
   }
 
   public flipTheMapView(): void {

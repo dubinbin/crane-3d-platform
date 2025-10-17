@@ -81,7 +81,7 @@ export default function CurrentCraneInfo() {
               >
                 小车距离：{currentCrane?.currentCarDistance}米
               </p>
-              <p>吊钩高度：{currentCrane?.craneHookheight}米</p>
+              <p>吊钩高度：{currentCrane?.currentRopeLength}米</p>
               <p>回转角度: {currentCrane?.currentRotationAngle}度</p>
             </div>
           </div>
@@ -93,7 +93,7 @@ export default function CurrentCraneInfo() {
             </div>
             <div className="item">
               <p>吊钩高度</p>
-              <i>{currentCrane?.craneHookheight}米</i>
+              <i>{currentCrane?.currentRopeLength}米</i>
             </div>
             <div className="item">
               <p>回转角度</p>

@@ -46,7 +46,7 @@ export interface CurrentWorkCraneData {
     // 吊物高度
     craneLoadHeight?: number;
     // 吊钩高度
-    craneHookheight?: number;
+    currentRopeLength?: number;
     // 回转角度
     currentRotationAngle?: number;
     // 小车距离
