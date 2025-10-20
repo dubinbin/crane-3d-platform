@@ -25,5 +25,5 @@ export const calculatePostureAbility = ( boomLength: number, targetDistance: num
 
 // 计算水平旋转角度
 export const calcRotationAngle = (targetRotationAngle: number) => {
-   return (targetRotationAngle - OFFSET_ROTATION_ANGLE);
+   return (targetRotationAngle + OFFSET_ROTATION_ANGLE);
 }

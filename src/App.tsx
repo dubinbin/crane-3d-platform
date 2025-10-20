@@ -5,6 +5,7 @@ import InfoPanel from "./components/info-panel";
 import LeftPanelArea from "./components/left-panel-area";
 import AlertModal from "./components/alert-model";
 import CraneInfoTooltip from "./components/crane-info-tooltip";
+import { TestComp } from "./components/test";
 /**
  * 主应用程序组件
  * 负责初始化应用程序和协调各个模块
@@ -14,6 +15,7 @@ function App() {
     <div>
       {/* 3D查看器 - 渲染点云和塔吊 */}
       <Header />
+      <TestComp />
       <Three3DView />
 
       {/* 控制面板 - UI控制 */}

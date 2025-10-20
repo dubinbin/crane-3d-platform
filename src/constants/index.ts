@@ -1,1 +1,1 @@
-export const OFFSET_ROTATION_ANGLE = 90;
+export const OFFSET_ROTATION_ANGLE = 83;
