@@ -8,7 +8,11 @@ import { DisconnectOutlined, LinkOutlined } from "@ant-design/icons";
 import { AlertModalManager } from "./alert-model";
 
 export default function CurrentCraneInfo() {
-  const currentCrane = useStore((state) => state.currentCrane);
+  const currentOperationCraneId = useStore(
+    (state) => state.currentOperationCraneId
+  );
+  const cranes = useStore((state) => state.cranes);
+  const currentCrane = cranes.find((c) => c.id === currentOperationCraneId);
 
   const handleConnect = () => {
     AlertModalManager.current?.show({
@@ -57,13 +61,13 @@ export default function CurrentCraneInfo() {
               ></span>
             </Tooltip>
           )}
-          {currentCrane?.craneId}
+          {currentCrane?.name}
         </div>
         <div className="current-crane-info-wrapper">
           <div className="crane-info-container">
             <img
               src={
-                currentCrane?.craneType === "boom"
+                currentCrane?.type === CraneType.BOOM
                   ? BoomTypeCrane
                   : FloorTypeCrane
               }
@@ -71,25 +75,39 @@ export default function CurrentCraneInfo() {
               alt="CraneInfo"
             />
             <div className="info-box">
-              <p>吊物高度：{currentCrane?.craneLoadHeight}米</p>
+              <p>吊物高度：{currentCrane?.currentHookHeight}米</p>
               <p
                 className={
-                  currentCrane?.craneType === CraneType.BOOM
+                  currentCrane?.type === CraneType.BOOM
                     ? "boom-type"
                     : "floor-type"
                 }
               >
-                小车距离：{currentCrane?.currentCarDistance}米
+                {currentCrane?.type === CraneType.BOOM
+                  ? "吊臂长度："
+                  : "小车距离："}
+                {currentCrane?.type === CraneType.BOOM
+                  ? currentCrane?.currentRopeLength
+                  : currentCrane?.currentCarDistance}
+                米
               </p>
-              <p>吊钩高度：{currentCrane?.currentRopeLength}米</p>
-              <p>回转角度: {currentCrane?.currentRotationAngle}度</p>
+              <p>吊钩高度：{currentCrane?.currentHeightDistanceFromGround}米</p>
+              <p>回转角度: {currentCrane?.currentRotationAngleText}度</p>
             </div>
           </div>
 
           <div className="crane-params-info-container">
             <div className="item">
-              <p>小车距离</p>
-              <i>{currentCrane?.currentCarDistance}米</i>
+              <p>
+                {currentCrane?.type === CraneType.BOOM
+                  ? "臂膀俯仰"
+                  : "小车距离"}
+              </p>
+              <i>
+                {currentCrane?.type === CraneType.BOOM
+                  ? currentCrane?.currentArmPitchAngleText
+                  : currentCrane?.currentCarDistance}
+              </i>
             </div>
             <div className="item">
               <p>吊钩高度</p>
@@ -97,7 +115,7 @@ export default function CurrentCraneInfo() {
             </div>
             <div className="item">
               <p>回转角度</p>
-              <i>{currentCrane?.currentRotationAngle}度</i>
+              <i>{currentCrane?.currentRotationAngleText}度</i>
             </div>
           </div>
 

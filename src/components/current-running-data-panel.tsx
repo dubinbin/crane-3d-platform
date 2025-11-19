@@ -4,7 +4,11 @@ import { useStore } from "../store";
 
 export default function CurrentCraneRunningDataPanel() {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleString());
-  const currentCrane = useStore((state) => state.currentCrane);
+  const currentOperationCraneId = useStore(
+    (state) => state.currentOperationCraneId
+  );
+  const cranes = useStore((state) => state.cranes);
+  const currentCrane = cranes.find((c) => c.id === currentOperationCraneId);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,7 +45,7 @@ export default function CurrentCraneRunningDataPanel() {
                 </span>
               </div>
               <div className="item">
-                <h4>{currentCrane?.craneId}</h4>
+                <h4>{currentCrane?.name}</h4>
                 <span>
                   <i
                     className="icon-dot"

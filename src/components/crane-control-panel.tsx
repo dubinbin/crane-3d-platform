@@ -13,7 +13,6 @@ export default function CraneControlPanel() {
   const cranes = useStore((state) => state.cranes);
   const removeCrane = useStore((state) => state.removeCrane);
   const clearAllCranes = useStore((state) => state.clearAllCranes);
-
   const handleAddCrane = () => {
     EventBus.emit(EventName.ADD_CRANE);
   };
@@ -26,9 +25,9 @@ export default function CraneControlPanel() {
   };
 
   const handleClearAll = () => {
-    clearAllCranes();
     if (window.viewer) {
       window.viewer.getCraneManager().clearAllCranes();
+      clearAllCranes();
     }
   };
 

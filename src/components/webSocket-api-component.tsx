@@ -1,9 +1,27 @@
 import { useEffect } from "react";
 import { webSocketService, type AuthConfig } from "../services/websocket";
-import { Button } from "antd";
+// import { Button } from "antd";
 import { Deserialize, type Message } from "../utils/deserialize";
+import { WEBSOCKET_RESPONSE_CODE_MAP } from "../constants";
+import { useStore } from "../store";
+import {
+  calcRotationAngle,
+  calculatePostureAbility,
+} from "../utils/posture-ability";
+// import { useStore } from "../store";
 
-export const TestComp = () => {
+export const WebSocketAPIComponent = () => {
+  const updateCraneArmPitch = useStore((state) => state.updateCraneArmPitch);
+  const updateRopeLength = useStore((state) => state.updateRopeLength);
+  const updateCraneRotation = useStore((state) => state.updateCraneRotation);
+  const updateCraneRotationText = useStore(
+    (state) => state.updateCraneRotationText
+  );
+  const updateCraneArmPitchText = useStore(
+    (state) => state.updateCraneArmPitchText
+  );
+  const cranelist = useStore((state) => state.cranes);
+
   useEffect(() => {
     // 设置认证信息并连接
     const authConfig: AuthConfig = {
@@ -93,12 +111,19 @@ export const TestComp = () => {
 
       // 在这里可以根据消息类型进行不同的处理
       // 例如：event code here
-      if (message.type === 0) {
-        console.log("Handle message type 0");
-      } else if (message.type === 1) {
-        console.log("Handle message type 1");
+      switch (message.type) {
+        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE: {
+          const eventData: number[] = message.valueArray2;
+          setFirstCraneData(eventData);
+          break;
+        }
+        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_ANGLE:
+          console.log("Handle message type 1");
+          break;
+        default:
+          console.log("other unknown message type :", message.type);
+          break;
       }
-      // ... 其他类型处理
     };
 
     const handleDisconnect = () => {
@@ -116,28 +141,64 @@ export const TestComp = () => {
       webSocketService.off("client-msg", handleServerMsg);
       webSocketService.off("disconnect", handleDisconnect);
     };
-  }, []);
+  }, [cranelist]);
 
-  const clientRelationRegister = () => {
-    // 检查连接状态
-    if (!webSocketService.getConnectionStatus()) {
-      console.warn("WebSocket not connected, please wait for connection");
-      return;
+  const setFirstCraneData = (eventData: number[]) => {
+    const matchItem = cranelist.find((c) => c.socketId === "1");
+    if (matchItem) {
+      const originalRotation = parseFloat(eventData[0].toFixed(2));
+      const rotation = calcRotationAngle(originalRotation);
+      updateCraneRotationText(matchItem.id, originalRotation.toFixed(2));
+      updateCraneRotation(matchItem.id, rotation);
+      if (window.viewer) {
+        window.viewer
+          .getCraneManager()
+          .updateCraneRotation(matchItem.id, rotation);
+      }
+      const carDistance = calculatePostureAbility(
+        matchItem.radius || 0,
+        parseFloat(eventData[1].toFixed(2))
+      );
+      const originalArmPitch = parseFloat(eventData[1].toFixed(2));
+      updateCraneArmPitchText(matchItem.id, originalArmPitch.toFixed(2));
+      updateCraneArmPitch(matchItem.id, carDistance);
+      if (window.viewer) {
+        window.viewer
+          .getCraneManager()
+          .updateCraneArmPitch(matchItem.id, carDistance);
+      }
+      const ropeLength = parseFloat(eventData[2].toFixed(2));
+      updateRopeLength(matchItem.id, ropeLength);
+      if (window.viewer) {
+        window.viewer
+          .getCraneManager()
+          .updateRopeLength(matchItem.id, ropeLength);
+      }
+    } else {
+      console.error("No match item found");
     }
-
-    const message = JSON.stringify({
-      userID: "735d5337-d530-4ceb-bedf-5df74eb283a4",
-      towercraneID: "11",
-      userName: "HKCRC",
-      placeID: "1",
-    });
-
-    webSocketService.emit("client-relation-register", message);
   };
+
+  // const clientRelationRegister = () => {
+  //   // 检查连接状态
+  //   if (!webSocketService.getConnectionStatus()) {
+  //     console.warn("WebSocket not connected, please wait for connection");
+  //     return;
+  //   }
+
+  //   const message = JSON.stringify({
+  //     userID: "735d5337-d530-4ceb-bedf-5df74eb283a4",
+  //     towercraneID: "11",
+  //     userName: "HKCRC",
+  //     placeID: "1",
+  //   });
+
+  //   webSocketService.emit("client-relation-register", message);
+  // };
 
   return (
     <div style={{ position: "absolute", top: 0, right: 0, zIndex: 1000 }}>
-      <Button onClick={clientRelationRegister}>clientRelationRegister</Button>
+      {/* <Button onClick={clientRelationRegister}>clientRelationRegister</Button> */}
     </div>
   );
 };

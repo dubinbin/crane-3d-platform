@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { EventBus, EventName, type CraneClickedEvent } from "../utils/event";
-import type { CraneInfo } from "../types";
+import { CraneType } from "../types";
 import "../styles/crane-info-tooltip.css";
 import { useStore } from "../store";
 
 export default function CraneInfoTooltip() {
-  const [selectedCrane, setSelectedCrane] = useState<CraneInfo | null>(null);
-  const updateCurrentCrane = useStore((state) => state.updateCurrentCrane);
+  const currentOperationCraneId = useStore(
+    (state) => state.currentOperationCraneId
+  );
+  const cranes = useStore((state) => state.cranes);
+  const currentCrane = cranes.find((c) => c.id === currentOperationCraneId);
   const [position, setPosition] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
@@ -15,10 +18,9 @@ export default function CraneInfoTooltip() {
 
   useEffect(() => {
     const handleCraneClick = (event: CraneClickedEvent) => {
-      setSelectedCrane(event.crane);
       setPosition(event.screenPosition);
       setVisible(true);
-      viewCurrentCraneInfo(event.crane);
+      viewCurrentCraneInfo();
     };
 
     EventBus.on(EventName.CRANE_CLICKED, handleCraneClick);
@@ -28,30 +30,15 @@ export default function CraneInfoTooltip() {
     };
   }, []);
 
-  const viewCurrentCraneInfo = (crane: CraneInfo) => {
-    updateCurrentCrane({
-      craneId: crane.name,
-      craneLoadHeight: crane.currentHookHeight,
-      currentRopeLength: crane.currentRopeLength,
-      currentRotationAngle: crane.currentRotationAngle,
-      currentCarDistance: crane.currentCarDistance,
-      loadMatrix: 30,
-      weight: 0.8,
-      windSpeed: 3,
-      swingWidth: 10,
-      armInclinationAngle: 0,
-      workTime: "12h",
-      workerName: "钟师傅",
-      craneType: crane.type,
-      onlineStatus: crane.onlineStatus,
-    });
+  const viewCurrentCraneInfo = () => {
+    if (!currentCrane) return;
   };
 
   const handleClose = () => {
     setVisible(false);
   };
 
-  if (!visible || !selectedCrane) return null;
+  if (!visible || !currentCrane) return null;
 
   return (
     <div
@@ -62,7 +49,7 @@ export default function CraneInfoTooltip() {
       }}
     >
       <div className="crane-info-tooltip-header">
-        <h4>{selectedCrane.name}</h4>
+        <h4>{currentCrane.name}</h4>
         <button onClick={handleClose} className="close-btn">
           ×
         </button>
@@ -71,65 +58,65 @@ export default function CraneInfoTooltip() {
       <div className="crane-info-content">
         <div className="info-row">
           <span className="label">ID:</span>
-          <span className="value">{selectedCrane.id}</span>
+          <span className="value">{currentCrane.id}</span>
         </div>
 
         <div className="info-row">
           <span className="label">类型:</span>
           <span className="value">
-            {selectedCrane.type === "boom" ? "动臂式" : "平头式"}
+            {currentCrane.type === CraneType.BOOM ? "动臂式" : "平头式"}
           </span>
         </div>
 
         <div className="info-row">
           <span className="label">Socket ID:</span>
-          <span className="value">{selectedCrane.socketId}</span>
+          <span className="value">{currentCrane.socketId}</span>
         </div>
 
-        {selectedCrane.position && (
+        {currentCrane.position && (
           <div className="info-row">
             <span className="label">位置:</span>
             <span className="value">
-              X: {selectedCrane.position.x.toFixed(2)}, Y:{" "}
-              {selectedCrane.position.y.toFixed(2)}, Z:{" "}
-              {selectedCrane.position.z.toFixed(2)}
+              X: {currentCrane.position.x.toFixed(2)}, Y:{" "}
+              {currentCrane.position.y.toFixed(2)}, Z:{" "}
+              {currentCrane.position.z.toFixed(2)}
             </span>
           </div>
         )}
 
         <div className="info-row">
           <span className="label">半径:</span>
-          <span className="value">{selectedCrane.radius}m</span>
+          <span className="value">{currentCrane.radius}m</span>
         </div>
 
         <div className="info-row">
           <span className="label">高度:</span>
-          <span className="value">{selectedCrane.height}m</span>
+          <span className="value">{currentCrane.height}m</span>
         </div>
 
-        {selectedCrane.currentRotationAngle !== undefined && (
+        {currentCrane.currentRotationAngle !== undefined && (
           <div className="info-row">
             <span className="label">回转角度:</span>
             <span className="value">
-              {selectedCrane.currentRotationAngle.toFixed(0)}°
+              {currentCrane?.currentRotationAngleText}°
             </span>
           </div>
         )}
 
-        {selectedCrane.currentArmPitchAngle !== undefined && (
+        {currentCrane.currentArmPitchAngle !== undefined && (
           <div className="info-row">
             <span className="label">俯仰角度:</span>
             <span className="value">
-              {selectedCrane.currentArmPitchAngle.toFixed(0)}°
+              {currentCrane?.currentArmPitchAngleText}°
             </span>
           </div>
         )}
 
-        {selectedCrane.currentRopeLength !== undefined && (
+        {currentCrane.currentRopeLength !== undefined && (
           <div className="info-row">
             <span className="label">吊绳长度:</span>
             <span className="value">
-              {selectedCrane.currentRopeLength.toFixed(2)}m
+              {currentCrane.currentRopeLength.toFixed(2)}m
             </span>
           </div>
         )}

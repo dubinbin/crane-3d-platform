@@ -39,7 +39,7 @@ export class CraneManager {
    */
   loadFBX(): void {
     this.fbxLoader.load(
-      'https://file.hkcrc.live/crane3.fbx',
+      'https://file.hkcrc.live/db1.fbx',
       (object) => {
         // 保存原始模型作为模板
         this.boomCraneTemplate = object.clone();
@@ -61,7 +61,7 @@ export class CraneManager {
      */
   loadFloorFBX(): void {
     this.fbxLoader.load(
-      'https://file.hkcrc.live/floor_type.fbx',
+      'https://file.hkcrc.live/floor2.fbx',
       (object) => {
         // 保存原始模型作为模板
         this.floorCraneTemplate = object.clone();
@@ -236,6 +236,74 @@ export class CraneManager {
   }
 
   /**
+   * 调整塔身高度（从底部延伸）并重新定位顶部组件
+   * @param crane - 塔吊对象
+   * @param targetHeight - 目标高度（米）
+   */
+  private adjustTowerHeight(crane: THREE.Object3D, targetHeight: number): void {
+    let towerBase: THREE.Object3D | null = null;
+    const topComponents: THREE.Object3D[] = []; // 存储需要重新定位的顶部组件
+    
+    // 查找 tower-base 和其他顶部组件
+    crane.children.forEach((child) => {
+      if (child.name === 'tower-base') {
+        towerBase = child as THREE.Object3D;
+      } else {
+        // 其他所有直接子组件都是顶部组件
+        topComponents.push(child as THREE.Object3D);
+      }
+    });
+
+    if (!towerBase) {
+      console.warn('未找到 tower-base，无法调整塔身高度');
+      return;
+    }
+
+    const tower = towerBase as THREE.Object3D;
+
+    // 计算 tower-base 的原始高度（使用 Y 轴，因为模型旋转后 Y 轴是高度方向）
+    const originalBox = new THREE.Box3().setFromObject(tower);
+    const originalHeight = originalBox.max.y - originalBox.min.y;
+    const originalTopY = originalBox.max.y; // 记录原始顶部位置
+    
+    console.log(`tower-base 原始信息: 高度=${originalHeight}, 顶部Y=${originalTopY}, 边界=[${originalBox.min.y}, ${originalBox.max.y}]`);
+    console.log(`找到 ${topComponents.length} 个顶部组件:`, topComponents.map(c => c.name));
+    
+    if (originalHeight === 0) {
+      console.warn('tower-base 高度为0，无法计算缩放比例');
+      return;
+    }
+
+    // 基准高度（可以根据实际模型调整）
+    const baseHeight = 10; // 假设模型默认高度为10米
+    
+    // 计算缩放比例
+    const scaleRatio = targetHeight / baseHeight;
+    
+    console.log(`调整塔身高度: 目标=${targetHeight}米, 基准=${baseHeight}米, 缩放比例=${scaleRatio}`);
+
+    // 在 Y 轴（高度方向）应用缩放
+    // 因为锚点在基座，所以直接缩放即可，不需要调整 tower-base 的位置
+    tower.scale.y = scaleRatio;
+
+    // 计算拉伸后的新顶部位置
+    const newBox = new THREE.Box3().setFromObject(tower);
+    const newTopY = newBox.max.y;
+    const topOffsetY = newTopY - originalTopY; // 顶部位置的变化量
+
+    console.log(`tower-base 缩放完成: scale.y=${scaleRatio}, 原顶部Y=${originalTopY}, 新顶部Y=${newTopY}, 顶部偏移=${topOffsetY}`);
+
+    // 重新定位所有顶部组件，让它们"安装"在新的塔顶上
+    topComponents.forEach((component) => {
+      const originalY = component.position.y + ((targetHeight - baseHeight)  * 180);
+      component.position.y = originalY + topOffsetY;
+      console.log(`调整组件 ${component.name} 位置: ${originalY.toFixed(2)} -> ${component.position.y.toFixed(2)} (偏移 ${topOffsetY.toFixed(2)})`);
+    });
+
+    console.log(`塔身高度调整完成: 原始=${baseHeight}米, 新高度=${targetHeight}米, 缩放比例=${scaleRatio}`);
+  }
+
+  /**
    * 添加塔吊
    * @param craneData - 塔吊数据
    * @returns 新添加的塔吊对象
@@ -261,6 +329,11 @@ export class CraneManager {
     newCrane.visible = true;
     newCrane.position.set(craneData.position?.x || 0, craneData.position?.y || 0, craneData.position?.z || 0);
     newCrane.position.z = 0;
+
+    // 根据输入的高度调整塔身
+    if (craneData.height && craneData.height > 0) {
+      this.adjustTowerHeight(newCrane, craneData.height);
+    }
 
     if (craneData.type === CraneType.FLOOR) {
       let topController: THREE.Object3D | null = null;
@@ -502,7 +575,7 @@ export class CraneManager {
     }
 
     // 限制距离范围，避免小车移出吊臂范围
-    let clampedDistance = parseFloat(distance.toString());
+    let clampedDistance = parseFloat(distance.toString()) / 3;
     if (isNaN(clampedDistance)) clampedDistance = 0;
     clampedDistance = Math.max(0, Math.min(20, clampedDistance)) + 3; // 限制范围0-100
 
@@ -532,7 +605,7 @@ export class CraneManager {
       return;
     }
 
-    let clampedLength = parseFloat(length.toString());
+    let clampedLength = parseFloat(length.toString()) / 10;
     if (isNaN(clampedLength)) clampedLength = 3.0;
     clampedLength = Math.max(0.1, Math.min(10.0, clampedLength)); // 限制长度范围
 

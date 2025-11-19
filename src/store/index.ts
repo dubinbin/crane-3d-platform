@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { OnlineStatus, type CraneInfo, type CurrentWorkCraneData } from "../types";
+import { type CraneInfo } from "../types";
 
 
 interface State {
@@ -8,17 +8,19 @@ interface State {
   removeCrane: (id: string) => void;
   updateCranePosition: (id: string, axis: 'x' | 'y' | 'z', value: number) => void;
   updateCraneRotation: (id: string, value: number) => void;
+  updateCraneRotationText: (id: string, value: string) => void;
   updateCraneArmPitch: (id: string, value: number) => void;
+  updateCraneArmPitchText: (id: string, value: string) => void;
   updateRopeLength: (id: string, value: number) => void;
   updateCraneCarDistance: (id: string, value: number) => void;
   clearAllCranes: () => void;
-  currentCrane: CurrentWorkCraneData | null;
-  updateCurrentCrane: (crane: CurrentWorkCraneData) => void;
-  clearCurrentCrane: () => void;
+  currentOperationCraneId: string | null;
+  setCurrentOperationCraneId: (id: string | null) => void;
   errorLogs: {
     message: string;
     timestamp: number;
   }[];
+  updateOtherWorkParams: (id: string, params: { workTime?: string; workerName?: string; loadMatrix?: number; weight?: number; windSpeed?: number; swingWidth?: number; armInclinationAngle?: number }) => void;
 }
 
 export const useStore = create<State>((set) => ({
@@ -74,23 +76,25 @@ export const useStore = create<State>((set) => ({
 
   clearErrorLogs: () => set({ errorLogs: [] }),
 
-  currentCrane: {
-    workTime: 'N/A',
-    workerName: '无操作人',
-    craneId: 'N/A',
-    craneLoadHeight: 0,
-    currentRopeLength: 0,
-    currentRotationAngle: 0,
-    currentCarDistance: 0,
-    loadMatrix: 0,
-    weight: 0,
-    windSpeed: 0,
-    swingWidth: 0,
-    armInclinationAngle: 0,
-    onlineStatus: OnlineStatus.OFFLINE,
-  },
+  updateOtherWorkParams: (id: string, params: { workTime?: string; workerName?: string; loadMatrix?: number; weight?: number; windSpeed?: number; swingWidth?: number; armInclinationAngle?: number }) => set((state) => ({
+    cranes: state.cranes.map(c => 
+      c.id === id ? { ...c, ...params } : c
+    )
+  })),
 
-  updateCurrentCrane: (crane: CurrentWorkCraneData) => set({ currentCrane: crane }),
+  currentOperationCraneId: null,
 
-  clearCurrentCrane: () => set({ currentCrane: null }),
+  setCurrentOperationCraneId: (id) => set({ currentOperationCraneId: id }),
+
+  updateCraneRotationText: (id, value) => set((state) => ({
+    cranes: state.cranes.map(c => 
+      c.id === id ? { ...c, currentRotationAngleText: value } : c
+    )
+  })),
+
+  updateCraneArmPitchText: (id, value) => set((state) => ({
+    cranes: state.cranes.map(c => 
+      c.id === id ? { ...c, currentArmPitchAngleText: value } : c
+    )
+  })),
 }));

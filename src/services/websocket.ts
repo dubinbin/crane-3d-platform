@@ -1,4 +1,5 @@
 import { io, Socket } from 'socket.io-client';
+import { WEBSOCKET_SERVER_URL } from '../constants';
 
 export type WebSocketEventCallback = (data: unknown) => void;
 
@@ -29,7 +30,7 @@ class WebSocketService {
       return;
     }
 
-    const serverUrl = url || (import.meta.env.DEV ? 'http://localhost:30002' : '/');
+    const serverUrl = url || (import.meta.env.DEV ? WEBSOCKET_SERVER_URL : '/');
     
     // 存储认证配置，用于重连时使用
     if (auth) {

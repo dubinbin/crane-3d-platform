@@ -127,6 +127,25 @@ export class PointCloudViewer {
     // 检查URL参数
     const urlParams = new URLSearchParams(window.location.search);
     const pcdId = urlParams.get('pcdId');
+    const densityParam = urlParams.get('density');
+    
+    // 设置点云密度选择框的值（等待DOM加载完成）
+    // React组件也会设置，这里作为备用确保在加载点云前值已设置
+    const setDensitySelect = () => {
+      const densitySelect = document.getElementById('point-density') as HTMLSelectElement;
+      if (densitySelect) {
+        const valueToSet = densityParam || "0"; // 默认值为 "0"（完整点云）
+        densitySelect.value = valueToSet;
+      }
+    };
+    
+    // 如果DOM已加载，立即设置；否则等待
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setDensitySelect);
+    } else {
+      // DOM已加载，但React组件可能还没渲染，延迟一点设置
+      setTimeout(setDensitySelect, 100);
+    }
 
     if (pcdId) {
       console.log('pcdId', pcdId);
@@ -153,6 +172,7 @@ export class PointCloudViewer {
    */
   private onCanvasClick(event: MouseEvent): void {
     // 计算鼠标在归一化设备坐标中的位置 (-1 to +1)
+    const { setCurrentOperationCraneId } = useStore.getState();
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
@@ -178,6 +198,7 @@ export class PointCloudViewer {
         
         // 从 store 中获取塔吊信息
         const craneInfo = useStore.getState().cranes.find(c => c.id === craneId);
+        setCurrentOperationCraneId(craneId);
         
         if (craneInfo) {
           console.log('点击塔吊:', craneInfo);
