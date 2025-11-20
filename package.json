@@ -10,12 +10,13 @@
     "preview": "vite preview",
     "build:start": "npm run build && node index.js",
     "server": "node index.js",
-    "deploy": "npm run build && pm2 start npm --name  towercrane-3dview -- server -- --port 9999 "
+    "deploy": "npm run build && pm2 start npm --name  towercrane-3dview -- server -- --port 9999"
   },
   "dependencies": {
     "@ant-design/icons": "5.x",
     "@react-three/fiber": "^9.3.0",
     "antd": "^5.27.4",
+    "dotenv": "^17.2.3",
     "eventemitter3": "^5.0.1",
     "express": "^5.1.0",
     "react": "^19.1.1",

@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  towercrane-3dview:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: towercrane-3dview
+    ports:
+      - "9999:9999" # WebSocket 和 Web 界面端口
+    environment:
+      - NODE_ENV=production
+    # 如果需要修改 TCP 服务器地址，可以通过环境变量传入
+    # environment:
+    #   - TCP_HOST=192.168.20.147
+    #   - TCP_PORT=12345
+    restart: unless-stopped
+    # 使用 host 网络模式以便访问局域网内的 TCP 服务器
+    # 注意：host 模式在 Docker Desktop (Mac/Windows) 上不完全支持
+    # network_mode: "host"
+
+    # 或者使用桥接网络（默认）
+    networks:
+      - towercrane-network
+
+networks:
+  towercrane-network:
+    driver: bridge

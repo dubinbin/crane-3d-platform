@@ -1,0 +1,28 @@
+{
+  "craneList": [
+        {
+        "crane_type": "boom",
+        "crane_id": "1",
+        "crane_name": "TC1",
+        "crane_position": {
+            "x": 0.7,
+            "y": -0.5,
+            "z": -0.6
+        },
+        "crane_height": 45,
+        "crane_radius": 10
+    },
+    {
+        "crane_type": "boom",
+        "crane_id": "2",
+        "crane_name": "TC2",
+        "crane_position": {
+            "x": -3.0,
+            "y": -0.4,
+            "z": -0.6
+        },
+        "crane_height": 45,
+        "crane_radius": 10
+    }
+    ]
+}

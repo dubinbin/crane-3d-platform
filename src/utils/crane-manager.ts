@@ -39,7 +39,7 @@ export class CraneManager {
    */
   loadFBX(): void {
     this.fbxLoader.load(
-      'https://file.hkcrc.live/db1.fbx',
+      '/model/db1.fbx',
       (object) => {
         // 保存原始模型作为模板
         this.boomCraneTemplate = object.clone();
@@ -61,7 +61,7 @@ export class CraneManager {
      */
   loadFloorFBX(): void {
     this.fbxLoader.load(
-      'https://file.hkcrc.live/floor2.fbx',
+      '/model/floor2.fbx',
       (object) => {
         // 保存原始模型作为模板
         this.floorCraneTemplate = object.clone();

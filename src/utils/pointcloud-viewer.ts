@@ -158,7 +158,8 @@ export class PointCloudViewer {
 
     if (pcdId) {
       console.log('pcdId', pcdId);
-      this.fetchFileAndHandle(`https://file.hkcrc.live/${pcdId}.pcd`, `${pcdId}.pcd`);
+      // 从本地服务器获取 PCD 文件
+      this.fetchFileAndHandle(`/pcd/${pcdId}.pcd`, `${pcdId}.pcd`);
     }
   }
 

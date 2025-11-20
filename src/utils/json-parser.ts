@@ -1,6 +1,7 @@
 export const fetchJson = async (id: string) => {
     try {
-    const response = await fetch(`https://file.hkcrc.live/${id}.json`);
+    // 从本地服务器获取 JSON 文件
+    const response = await fetch(`/json/${id}.json`);
     const data = await response.json();
     if (response.ok) {
       return data;

@@ -5,7 +5,11 @@ import net from "net";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
+dotenv.config();
+
+console.log(process.env.TCP_HOST, process.env.TCP_PORT);
 const app = express();
 
 // 获取当前文件的目录路径 (ES6 模块中的 __dirname 替代方案)
@@ -19,8 +23,8 @@ const host = "localhost";
 const serverPort = 9999;
 
 // TCP 服务器配置
-const TCP_HOST = "192.168.20.147";
-const TCP_PORT = 12345;
+const TCP_HOST = process.env.TCP_HOST || "192.168.20.147";
+const TCP_PORT = process.env.TCP_PORT || 12345;
 
 // 配置CORS
 app.use(cors({
@@ -33,6 +37,15 @@ app.use(cors({
 
 // 托管静态文件 - 服务 dist 文件夹
 app.use(express.static(path.join(__dirname, '/dist')));
+
+// 托管 PCD 文件目录
+app.use('/pcd', express.static(path.join(__dirname, '/public/pcd')));
+
+// 托管模型文件目录
+app.use('/model', express.static(path.join(__dirname, '/public/model')));
+
+// 托管 JSON 文件目录
+app.use('/json', express.static(path.join(__dirname, '/public/json')));
 
 // 配置 Socket.IO
 const io = new SocketIOServer(server, {
@@ -134,8 +147,8 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '/dist/index.html'));
 });
 
-// 处理其他页面路由（避免与 socket.io 路径冲突）
-app.get(/^\/(?!socket\.io).*/, (req, res) => {
+// 处理其他页面路由（排除静态文件路径和 socket.io）
+app.get(/^\/(?!(socket\.io|pcd|model|json)\/).*/, (req, res) => {
   res.sendFile(path.join(__dirname, '/dist/index.html'));
 });
 
