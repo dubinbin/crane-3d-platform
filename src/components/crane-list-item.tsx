@@ -178,9 +178,9 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
         </div>
         <Input
           type="range"
-          min="0.1"
-          max="10"
-          step="0.1"
+          min="1"
+          max="100"
+          step="1"
           value={crane.currentRopeLength}
           onChange={(e) => handleRopeLengthChange(parseFloat(e.target.value))}
           className="crane-slider"
