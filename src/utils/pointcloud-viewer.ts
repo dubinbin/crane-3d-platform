@@ -12,6 +12,8 @@ import { FileUtils } from './file-util';
 import { CraneManager, type CraneUserData } from './crane-manager';
 import { EventBus, EventName } from './event';
 import { useStore } from '../store';
+import { fetchJson } from './json-parser';
+import { OnlineStatus, type CraneInfo, type CraneType } from '../types';
 
 interface ViewerOptions {
   width?: number;
@@ -33,7 +35,7 @@ export class PointCloudViewer {
   private craneManager: CraneManager;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
-
+  private configId: string | null = null;
   constructor(containerId: string, options: ViewerOptions = {}) {
     const containerElement = document.getElementById(containerId);
     
@@ -128,7 +130,9 @@ export class PointCloudViewer {
     const urlParams = new URLSearchParams(window.location.search);
     const pcdId = urlParams.get('pcdId');
     const densityParam = urlParams.get('density');
-    
+    const configId = urlParams.get('configId');
+    this.configId = configId || '';
+
     // 设置点云密度选择框的值（等待DOM加载完成）
     // React组件也会设置，这里作为备用确保在加载点云前值已设置
     const setDensitySelect = () => {
@@ -317,6 +321,7 @@ export class PointCloudViewer {
           window.currentFileName = fileObj.name;
           const pointData = await this.loadPCD(fileObj);
           this.updateFileInfo(pointData, fileObj.name);
+          this.fetchJsonAndHandle();
         } catch (error) {
           alert('加载PCD文件失败: ' + (error as Error).message);
           console.error(error);
@@ -326,6 +331,41 @@ export class PointCloudViewer {
       alert(`从服务器获取文件失败: ${(error as Error).message}`);
     } finally {
       this.hideLoading();
+    }
+  }
+
+  async fetchJsonAndHandle(): Promise<void> {
+    if (!this.configId) return;
+    try {
+      const { addCrane } = useStore.getState();
+      const jsonData = await fetchJson(this.configId);
+      if (jsonData) {
+        const {craneList} = jsonData;
+        craneList.forEach((crane: { crane_id: string; crane_name: string; crane_type: CraneType; crane_position: { x: number; y: number; z: number }; crane_height: number }) => {
+          const craneInfo: CraneInfo = {
+            id: crane.crane_id,
+            name: crane.crane_name,
+            socketId: '',
+            onlineStatus: OnlineStatus.OFFLINE,
+            type: crane.crane_type,
+            position: {
+              x: crane.crane_position.x,
+              y: crane.crane_position.y,
+              z: crane.crane_position.z,
+            },
+            radius: 60,
+            height: crane.crane_height / 3,
+          };
+          this.craneManager.addCrane(craneInfo);
+          this.craneManager.updateCranePosition(craneInfo.id, 'z', craneInfo?.position?.z || 0);
+          addCrane(craneInfo);
+        });
+      } else {
+        console.error('JSON文件加载失败:', jsonData);
+      }
+    } catch (error) {
+      console.error('加载JSON文件失败:', error);
+      throw error;
     }
   }
 

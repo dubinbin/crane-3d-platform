@@ -55,8 +55,6 @@ export default function Three3DView() {
     // 将viewer暴露到全局作用域
     window.viewer = viewer;
 
-    console.log("Three3DView 初始化完成");
-
     // 清理函数
     return () => {
       if (viewerRef.current) {

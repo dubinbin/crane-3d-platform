@@ -111,10 +111,16 @@ export class PCDParser {
         throw new Error("无法解析PCD文件或文件中没有有效的点数据");
       }
   
+      // 计算边界框和尺寸
+      const boundingBox = this.calculateBoundingBox(positions);
+      
+      console.log("点云边界信息:", boundingBox);
+  
       return {
         positions: new Float32Array(positions),
         colors: new Float32Array(colors),
         count: positions.length / 3,
+        boundingBox: boundingBox, // 添加边界框信息
       };
     }
   
@@ -266,6 +272,71 @@ export class PCDParser {
       }
   
       console.log(`二进制解析完成: ${parsedPoints}个点`);
+    }
+  
+    /**
+     * 计算点云的边界框和尺寸信息
+     * @param {Array<number>} positions - 位置数组 [x1, y1, z1, x2, y2, z2, ...]
+     * @returns {Object} 边界框信息
+     */
+    static calculateBoundingBox(positions: number[]) {
+      if (positions.length === 0) {
+        return null;
+      }
+  
+      let minX = Infinity, maxX = -Infinity;
+      let minY = Infinity, maxY = -Infinity;
+      let minZ = Infinity, maxZ = -Infinity;
+  
+      // 遍历所有点，找到最小和最大值
+      for (let i = 0; i < positions.length; i += 3) {
+        const x = positions[i];
+        const y = positions[i + 1];
+        const z = positions[i + 2];
+  
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+        if (z < minZ) minZ = z;
+        if (z > maxZ) maxZ = z;
+      }
+  
+      // 计算尺寸
+      const width = maxX - minX;   // X轴方向的长度
+      const height = maxY - minY;  // Y轴方向的长度
+      const depth = maxZ - minZ;   // Z轴方向的长度
+  
+      // 计算中心点
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      const centerZ = (minZ + maxZ) / 2;
+  
+      // 计算比例
+      const maxDimension = Math.max(width, height, depth);
+      const aspectRatioXY = height !== 0 ? width / height : 1;  // 宽高比 (XY平面)
+      const aspectRatioXZ = depth !== 0 ? width / depth : 1;    // 宽深比
+      const aspectRatioYZ = depth !== 0 ? height / depth : 1;   // 高深比
+  
+      return {
+        min: { x: minX, y: minY, z: minZ },
+        max: { x: maxX, y: maxY, z: maxZ },
+        center: { x: centerX, y: centerY, z: centerZ },
+        size: {
+          width: width,      // X轴尺寸
+          height: height,    // Y轴尺寸
+          depth: depth,      // Z轴尺寸
+          maxDimension: maxDimension  // 最大尺寸
+        },
+        aspectRatio: {
+          xy: aspectRatioXY,  // 宽高比
+          xz: aspectRatioXZ,  // 宽深比
+          yz: aspectRatioYZ   // 高深比
+        },
+        // 提供更直观的描述
+        dimensions: `${width.toFixed(2)} × ${height.toFixed(2)} × ${depth.toFixed(2)}`,
+        ratioDescription: `宽:高:深 = ${(width/maxDimension).toFixed(2)}:${(height/maxDimension).toFixed(2)}:${(depth/maxDimension).toFixed(2)}`
+      };
     }
   }
   

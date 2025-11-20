@@ -38,6 +38,10 @@ export default function PointCloudHelperPanel() {
     const densitySelect = document.getElementById(
       "point-density"
     ) as HTMLSelectElement;
+
+    if (controlPanelRef.current) {
+      controlPanelRef.current.style.opacity = "0";
+    }
     if (densitySelect) {
       densitySelect.value = selectedDensity;
     }
@@ -100,35 +104,6 @@ export default function PointCloudHelperPanel() {
         </div>
 
         <div className="control-content">
-          {/* <div className="control-group">
-            <label>
-              点大小
-              <span className="value-display" id="point-size-value">
-                {pointSize}
-              </span>
-            </label>
-            <input
-              type="range"
-              id="point-size-slider"
-              className="slider"
-              min="0.01"
-              max="0.5"
-              step="0.01"
-              value={pointSize}
-              onChange={bindPointSizeControl}
-            />
-          </div> */}
-
-          {/* <div className="control-group">
-            <label>背景颜色</label>
-            <input
-              type="color"
-              id="background-color"
-              onChange={changeColor}
-              value={backgroundColor}
-            />
-          </div> */}
-
           <div className="crane-control-panel">
             <label className="panel-header">
               <h4>点云密度</h4>
