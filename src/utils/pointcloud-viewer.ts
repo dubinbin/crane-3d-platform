@@ -63,7 +63,7 @@ export class PointCloudViewer {
     
     // 设置Z轴为向上方向（默认是Y轴）
     this.camera.up.set(0, 0, 1);
-    this.camera.position.set(0, -50, 0);
+    // this.camera.position.set(0, 50, 0);
     
     this.fbxLoader = new FBXLoader();
 
@@ -456,7 +456,7 @@ export class PointCloudViewer {
 
     const distance = maxSize * scale * 1.5;
     // 使用Y轴作为观察距离，因为Z轴是向上方向
-    this.camera.position.set(0, -distance, 0);
+    this.camera.position.set(-10, -distance + 4, 5);
     this.camera.lookAt(0, 0, 0);
     this.controls.update();
 
@@ -496,7 +496,7 @@ export class PointCloudViewer {
       const distance = maxSize * 1.5;
 
       // 使用Y轴作为观察距离，因为Z轴是向上方向
-      this.camera.position.set(0, -distance, 0);
+      this.camera.position.set(-10, -distance + 4, 5);
       this.camera.lookAt(0, 0, 0);
       this.controls.target.set(0, 0, 0);
       this.controls.update();
