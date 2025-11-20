@@ -2,16 +2,16 @@
 
     background: #00000021;
     backdrop-filter: blur(5px);
-    border-radius: 0px 39px 0px 25px;
+    border-radius: calc(0px * var(--scale, 1)) calc(39px * var(--scale, 1)) calc(0px * var(--scale, 1)) calc(25px * var(--scale, 1));
 
-    border: 10px solid #ffffff;
+    border: calc(10px * var(--scale, 1)) solid #ffffff;
     border-image: url('../assets/border.png') 51 38 21 132;
-    border-width:40px 40px 12px 39px;
+    border-width: calc(40px * var(--scale, 1)) calc(40px * var(--scale, 1)) calc(12px * var(--scale, 1)) calc(39px * var(--scale, 1));
     box-sizing: border-box;
 
     /* 添加高度限制，防止占据过多空间 */
     height: auto;
-    max-height: 600px;
+    max-height: calc(600px * var(--scale, 1));
     overflow-y: auto;
 
     /* 美化滚动条 */
@@ -20,7 +20,7 @@
 }
 
 .pointCloud-helper-panel::-webkit-scrollbar {
-    width: 6px;
+    width: calc(6px * var(--scale, 1));
 }
 
 .pointCloud-helper-panel::-webkit-scrollbar-track {
@@ -29,7 +29,7 @@
 
 .pointCloud-helper-panel::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.3);
-    border-radius: 3px;
+    border-radius: calc(3px * var(--scale, 1));
 }
 
 .pointCloud-helper-panel::-webkit-scrollbar-thumb:hover {
@@ -40,7 +40,7 @@
     position: relative;
     width: 100%;
     padding-left: 0px;
-    margin-bottom: 30px;
+    margin-bottom: calc(30px * var(--scale, 1));
 }
 
 .crane-list-container {
@@ -54,7 +54,7 @@
 
 .pointCloud-helper-panel .btn-group {
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: calc(10px * var(--scale, 1));
     display: grid;
 }
 

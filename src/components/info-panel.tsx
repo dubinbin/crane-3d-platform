@@ -5,9 +5,9 @@ import CurrentCraneRunningDataPanel from "./current-running-data-panel";
 export default function InfoPanel() {
   return (
     <div className="info-panel">
-      <div style={{ height: "64px" }}></div>
+      <div style={{ height: `calc(64px * var(--scale, 1))` }}></div>
       <CurrentCraneRunningDataPanel />
-      <div style={{ height: "20px" }}></div>
+      <div style={{ height: `calc(20px * var(--scale, 1))` }}></div>
       <CurrentCraneInfo />
     </div>
   );

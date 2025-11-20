@@ -110,8 +110,8 @@ export default function CraneControlPanel() {
                       />
                     }
                     style={{
-                      borderRadius: "12px",
-                      padding: "4px 10px",
+                      borderRadius: `calc(12px * var(--scale, 1))`,
+                      padding: `calc(4px * var(--scale, 1)) calc(10px * var(--scale, 1))`,
                     }}
                     danger
                     onClick={() => handleRemoveCrane(crane.id)}
@@ -127,7 +127,7 @@ export default function CraneControlPanel() {
                       width: "100%",
                       textAlign: "left",
                       fontWeight: "bold",
-                      fontSize: "14px",
+                      fontSize: `calc(14px * var(--scale, 1))`,
                     }}
                   >
                     塔吊编号：{crane.name}

@@ -1,41 +1,41 @@
 .crane-control-panel {
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: calc(8px * var(--scale, 1));
+  padding: calc(10px * var(--scale, 1));
   color: white;
   backdrop-filter: blur(10px);
-  max-height: 400px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  max-height: calc(400px * var(--scale, 1));
+  border: calc(1px * var(--scale, 1)) solid rgba(255, 255, 255, 0.1);
   overflow: scroll;
 }
 
 .panel-header {
-  margin-bottom: 16px;
+  margin-bottom: calc(16px * var(--scale, 1));
 }
 
 .panel-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: calc(18px * var(--scale, 1));
   color: #fff;
   font-weight: 600;
 }
 
 .panel-actions {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: calc(8px * var(--scale, 1));
+  margin-bottom: calc(16px * var(--scale, 1));
   flex-wrap: wrap;
 }
 
 .crane-control-panel .btn {
-  padding: 8px 16px;
+  padding: calc(8px * var(--scale, 1)) calc(16px * var(--scale, 1));
   border: none;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--scale, 1));
   cursor: pointer;
-  font-size: 14px;
+  font-size: calc(14px * var(--scale, 1));
   font-weight: 500;
   transition: all 0.2s;
   flex: 1;
-  min-width: 100px;
+  min-width: calc(100px * var(--scale, 1));
 }
 
 .crane-control-panel .btn-primary {
@@ -73,9 +73,9 @@
 }
 
 .crane-list {
-  max-height: 600px;
+  max-height: calc(600px * var(--scale, 1));
   overflow-y: auto;
-  padding-right: 4px;
+  padding-right: calc(4px * var(--scale, 1));
   -webkit-scrollbar: none;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -85,17 +85,17 @@
 }
 
 .crane-list::-webkit-scrollbar {
-  width: 6px;
+  width: calc(6px * var(--scale, 1));
 }
 
 .crane-list::-webkit-scrollbar-track {
   background: rgba(255, 255, 255, 0.05);
-  border-radius: 3px;
+  border-radius: calc(3px * var(--scale, 1));
 }
 
 .crane-list::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+  border-radius: calc(3px * var(--scale, 1));
 }
 
 .crane-list::-webkit-scrollbar-thumb:hover {
@@ -105,7 +105,7 @@
 .empty-message {
   color: #999;
   text-align: center;
-  padding: 20px;
-  font-size: 14px;
+  padding: calc(20px * var(--scale, 1));
+  font-size: calc(14px * var(--scale, 1));
 }
 

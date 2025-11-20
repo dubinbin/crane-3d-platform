@@ -100,7 +100,7 @@ export default function PointCloudHelperPanel() {
         </div>
 
         <div className="panel-header">
-          <h3 style={{ margin: 0, color: "#FFFFFFFF" }}>🔬 设置面板</h3>
+          <h3 style={{ margin: 0, color: "#FFFFFFFF", fontSize: `calc(18px * var(--scale, 1))` }}>🔬 设置面板</h3>
         </div>
 
         <div className="control-content">
@@ -115,11 +115,12 @@ export default function PointCloudHelperPanel() {
               id="point-density"
               style={{
                 width: "100%",
-                padding: 8,
+                padding: `calc(8px * var(--scale, 1))`,
                 background: "rgba(255, 255, 255, 0.2)",
                 color: "white",
-                border: "1px solid #666",
-                borderRadius: 6,
+                border: `calc(1px * var(--scale, 1)) solid #666`,
+                borderRadius: `calc(6px * var(--scale, 1))`,
+                fontSize: `calc(14px * var(--scale, 1))`,
               }}
               value={selectedDensity}
               onChange={bindPointDensityControl}

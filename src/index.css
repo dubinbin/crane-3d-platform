@@ -8,24 +8,31 @@ body {
   font-family: Arial, sans-serif;
   background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
   overflow: hidden;
+  margin: 0;
+  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
 }
 
 #viewer-container {
-  width: 100vw;
-  height: 100vh;
+  width: var(--viewer-width, 100vw);
+  height: var(--viewer-height, 100vh);
   position: relative;
 }
 
 #control-panel {
   color: white;
-  width: 400px;
+  width: calc(400px * var(--scale, 1));
   z-index: 1000;
   transition: all 0.3s ease;
   overflow: hidden;
 }
 
 #control-panel.collapsed {
-  height: 200px;
+  height: calc(200px * var(--scale, 1));
 }
 
 #control-panel.collapsed .control-content {
@@ -41,18 +48,18 @@ body {
 #panel-toggle {
   position: absolute;
   top: 0px;
-  right: 10px;
+  right: calc(10px * var(--scale, 1));
   background: rgba(255, 255, 255, 0.2);
   border: none;
   color: white;
-  width: 30px;
-  height: 30px;
+  width: calc(30px * var(--scale, 1));
+  height: calc(30px * var(--scale, 1));
   border-radius: 50%;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: calc(16px * var(--scale, 1));
   transition: all 0.3s ease;
   z-index: 1001;
   user-select: none;
@@ -71,10 +78,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 15px;
-  margin-top: 5px;
-  margin-left: 5px;
-  margin-right: 5px;
+  margin-bottom: calc(15px * var(--scale, 1));
+  margin-top: calc(5px * var(--scale, 1));
+  margin-left: calc(5px * var(--scale, 1));
+  margin-right: calc(5px * var(--scale, 1));
   position: relative;
 }
 
@@ -83,16 +90,16 @@ body {
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: calc(15px * var(--scale, 1));
   
 }
 
 .control-group {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: calc(10px * var(--scale, 1));
   align-items: start;
-  margin-bottom: 15px;
+  margin-bottom: calc(15px * var(--scale, 1));
 }
 
 .control-group label {
@@ -101,8 +108,8 @@ body {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  margin-bottom: 8px;
-  font-size: 14px;
+  margin-bottom: calc(8px * var(--scale, 1));
+  font-size: calc(14px * var(--scale, 1));
 }
 
 .file-input-wrapper {
@@ -121,11 +128,11 @@ body {
 
 .file-input-button {
   display: block;
-  padding: 12px 20px;
+  padding: calc(12px * var(--scale, 1)) calc(20px * var(--scale, 1));
   background: #4caf50;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--scale, 1));
   cursor: pointer;
   text-align: center;
   width: 100%;
@@ -137,8 +144,8 @@ body {
 
 .slider {
   width: 100%;
-  height: 6px;
-  border-radius: 3px;
+  height: calc(6px * var(--scale, 1));
+  border-radius: calc(3px * var(--scale, 1));
   background: rgba(255, 255, 255, 0.2);
   outline: none;
   -webkit-appearance: none;
@@ -148,20 +155,20 @@ body {
 .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: calc(18px * var(--scale, 1));
+  height: calc(18px * var(--scale, 1));
   border-radius: 50%;
   background: #4caf50;
   cursor: pointer;
 }
 
 .btn {
-  padding: 10px 20px;
+  padding: calc(10px * var(--scale, 1)) calc(20px * var(--scale, 1));
   border: none;
-  border-radius: 6px;
+  border-radius: calc(6px * var(--scale, 1));
   cursor: pointer;
-  font-size: 13px;
-  margin: 5px;
+  font-size: calc(13px * var(--scale, 1));
+  margin: calc(5px * var(--scale, 1));
   background: #2196f3;
   color: white;
 }
@@ -178,10 +185,10 @@ body {
 
 #info {
   background: rgba(255, 255, 255, 0.1);
-  padding: 10px;
-  border-radius: 6px;
-  margin-top: 15px;
-  font-size: 12px;
+  padding: calc(10px * var(--scale, 1));
+  border-radius: calc(6px * var(--scale, 1));
+  margin-top: calc(15px * var(--scale, 1));
+  font-size: calc(12px * var(--scale, 1));
 }
 
 #loading-overlay {

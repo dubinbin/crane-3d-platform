@@ -1,14 +1,14 @@
 .crane-info-tooltip {
   position: fixed;
   background: rgba(0, 0, 0, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  padding: 16px;
+  border: calc(1px * var(--scale, 1)) solid rgba(255, 255, 255, 0.2);
+  border-radius: calc(8px * var(--scale, 1));
+  padding: calc(16px * var(--scale, 1));
   color: white;
   z-index: 10000;
-  min-width: 280px;
+  min-width: calc(280px * var(--scale, 1));
   backdrop-filter: blur(10px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 calc(4px * var(--scale, 1)) calc(16px * var(--scale, 1)) rgba(0, 0, 0, 0.5);
   animation: fadeIn 0.2s ease-in-out;
 }
 
@@ -27,14 +27,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: calc(12px * var(--scale, 1));
+  padding-bottom: calc(8px * var(--scale, 1));
+  border-bottom: calc(1px * var(--scale, 1)) solid rgba(255, 255, 255, 0.1);
 }
 
 .crane-info-tooltip-header h4 {
   margin: 0;
-  font-size: 16px;
+  font-size: calc(16px * var(--scale, 1));
   color: #4caf50;
   font-weight: 600;
 }
@@ -43,12 +43,12 @@
   background: transparent;
   border: none;
   color: #fff;
-  font-size: 24px;
+  font-size: calc(24px * var(--scale, 1));
   cursor: pointer;
   padding: 0;
-  width: 24px;
-  height: 24px;
-  line-height: 20px;
+  width: calc(24px * var(--scale, 1));
+  height: calc(24px * var(--scale, 1));
+  line-height: calc(20px * var(--scale, 1));
   transition: color 0.2s;
 }
 
@@ -59,25 +59,25 @@
 .crane-info-content {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: calc(8px * var(--scale, 1));
 }
 
 .crane-info-content .info-row {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: calc(12px * var(--scale, 1));
 }
 
 .crane-info-content .label {
   color: #999;
-  font-size: 13px;
+  font-size: calc(13px * var(--scale, 1));
   flex-shrink: 0;
 }
 
 .crane-info-content .value {
   color: #fff;
-  font-size: 13px;
+  font-size: calc(13px * var(--scale, 1));
   font-weight: 500;
   text-align: right;
   word-break: break-all;

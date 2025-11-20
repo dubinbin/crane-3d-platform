@@ -7,9 +7,9 @@ export default function LeftPanelArea() {
   return (
     <div className="left-panel-area">
       {/* <CurrentDataPanel /> */}
-      <div style={{ height: "20px" }}></div>
+      <div style={{ height: `calc(20px * var(--scale, 1))` }}></div>
       <PointCloudHelperPanel />
-      <div style={{ height: "20px" }}></div>
+      <div style={{ height: `calc(20px * var(--scale, 1))` }}></div>
       {/* <CurrentDataLogs /> */}
     </div>
   );

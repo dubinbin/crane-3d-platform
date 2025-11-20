@@ -1,29 +1,29 @@
 .crane-item {
   background: rgba(255, 255, 255, 0.05);
-  padding: 15px;
-  margin-bottom: 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: calc(15px * var(--scale, 1));
+  margin-bottom: calc(10px * var(--scale, 1));
+  border-radius: calc(6px * var(--scale, 1));
+  border: calc(1px * var(--scale, 1)) solid rgba(255, 255, 255, 0.1);
 }
 
 .crane-item-header {
-  font-size: 16px;
+  font-size: calc(16px * var(--scale, 1));
   font-weight: bold;
-  margin-bottom: 10px;
-  margin-top: 10px;
+  margin-bottom: calc(10px * var(--scale, 1));
+  margin-top: calc(10px * var(--scale, 1));
   color: #4caf50;
 }
 
 .crane-name {
   color: #4caf50;
-  font-size: 14px;
+  font-size: calc(14px * var(--scale, 1));
 }
 
 .crane-item .btn-small {
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: calc(4px * var(--scale, 1)) calc(8px * var(--scale, 1));
+  font-size: calc(12px * var(--scale, 1));
   border: none;
-  border-radius: 4px;
+  border-radius: calc(4px * var(--scale, 1));
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -38,14 +38,14 @@
 }
 
 .crane-control {
-  margin-bottom: 8px;
+  margin-bottom: calc(8px * var(--scale, 1));
 }
 
 .crane-control label {
   display: block;
-  font-size: 12px;
+  font-size: calc(12px * var(--scale, 1));
   color: #ccc;
-  margin-bottom: 4px;
+  margin-bottom: calc(4px * var(--scale, 1));
 }
 
 .value-display {
@@ -55,15 +55,15 @@
 
 .crane-slider {
   width: 100%;
-  margin-top: 4px;
+  margin-top: calc(4px * var(--scale, 1));
   cursor: pointer;
 }
 
 .crane-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: calc(14px * var(--scale, 1));
+  height: calc(14px * var(--scale, 1));
   background: #4caf50;
   border-radius: 50%;
   cursor: pointer;
@@ -74,19 +74,19 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2px;
+  margin-bottom: calc(2px * var(--scale, 1));
 }
 
 .crane-control-label i {
   font-style: normal;
   color: #ccc;
-  margin-right: 4px;
-  font-size: 14px;
+  margin-right: calc(4px * var(--scale, 1));
+  font-size: calc(14px * var(--scale, 1));
 }
 
 .crane-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
+  width: calc(14px * var(--scale, 1));
+  height: calc(14px * var(--scale, 1));
   background: #4caf50;
   border-radius: 50%;
   cursor: pointer;

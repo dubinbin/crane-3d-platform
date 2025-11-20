@@ -12,6 +12,17 @@ export default function Three3DView() {
     // 确保容器已挂载
     if (!containerRef.current) return;
 
+    // 从URL参数获取宽度和高度
+    const urlParams = new URLSearchParams(window.location.search);
+    const widthParam = urlParams.get('width');
+    const heightParam = urlParams.get('height');
+    
+    // 确定使用的宽度和高度
+    const width = widthParam ? `${widthParam}px` : '100%';
+    const height = heightParam ? `${heightParam}px` : '100vh';
+    const position = widthParam || heightParam ? 'absolute' : 'fixed';
+    const topOffset = '0';
+
     // 保存当前容器引用
     const currentContainer = containerRef.current;
 
@@ -19,10 +30,10 @@ export default function Three3DView() {
     const viewerContainer = document.createElement("div");
     viewerContainer.id = "viewer-container";
     viewerContainer.style.cssText = `
-      width: 100%;
-      height: 100vh;
-      position: fixed;
-      top: 0;
+      width: ${width};
+      height: ${height};
+      position: ${position};
+      top: ${topOffset};
       left: 0;
       z-index: 1;
     `;
@@ -33,11 +44,11 @@ export default function Three3DView() {
     loadingOverlay.id = "loading-overlay";
     loadingOverlay.style.cssText = `
       display: none;
-      position: fixed;
-      top: 0;
+      position: ${position};
+      top: ${topOffset};
       left: 0;
-      width: 100%;
-      height: 100%;
+      width: ${width};
+      height: ${height};
       background: rgba(0, 0, 0, 0.7);
       justify-content: center;
       align-items: center;
@@ -48,8 +59,12 @@ export default function Three3DView() {
     loadingOverlay.innerHTML = "<p>正在加载...</p>";
     currentContainer.appendChild(loadingOverlay);
 
-    // 初始化点云查看器
-    const viewer = new PointCloudViewer("viewer-container");
+    // 初始化点云查看器，传入宽度和高度（如果指定了）
+    const viewerOptions: { width?: number; height?: number } = {};
+    if (widthParam) viewerOptions.width = parseInt(widthParam, 10);
+    if (heightParam) viewerOptions.height = parseInt(heightParam, 10);
+    
+    const viewer = new PointCloudViewer("viewer-container", viewerOptions);
     viewerRef.current = viewer;
 
     // 将viewer暴露到全局作用域
@@ -85,10 +100,26 @@ export default function Three3DView() {
     };
   }, []);
 
+  // 从URL参数获取宽度和高度（用于初始渲染）
+  const urlParams = new URLSearchParams(window.location.search);
+  const widthParam = urlParams.get('width');
+  const heightParam = urlParams.get('height');
+  
+  const containerWidth = widthParam ? `${widthParam}px` : '100%';
+  const containerHeight = heightParam ? `${heightParam}px` : '100vh';
+
   return (
     <div
       ref={containerRef}
-      style={{ width: "100%", height: "100vh", position: "relative" }}
+      style={{ 
+        width: containerWidth, 
+        height: containerHeight, 
+        position: "relative",
+        top: 0,
+        left: 0,
+        margin: 0,
+        padding: 0
+      }}
     />
   );
 }

@@ -45,9 +45,14 @@ export class PointCloudViewer {
     
     this.container = containerElement;
 
+    // 从URL参数获取宽度和高度（如果options中没有提供）
+    const urlParamsForSize = new URLSearchParams(window.location.search);
+    const urlWidth = urlParamsForSize.get('width');
+    const urlHeight = urlParamsForSize.get('height');
+
     this.options = {
-      width: options.width || this.container.offsetWidth || 800,
-      height: options.height || this.container.offsetHeight || 600,
+      width: options.width || (urlWidth ? parseInt(urlWidth, 10) : undefined) || this.container.offsetWidth || 800,
+      height: options.height || (urlHeight ? parseInt(urlHeight, 10) : undefined) || this.container.offsetHeight || 600,
       pointSize: options.pointSize || 0.01,
       backgroundColor: options.backgroundColor || 0x00001e,
     };
@@ -496,7 +501,7 @@ export class PointCloudViewer {
 
     const distance = maxSize * scale * 1.5;
     // 使用Y轴作为观察距离，因为Z轴是向上方向
-    this.camera.position.set(-10, -distance + 4, 5);
+    this.camera.position.set(-10, -distance + 4, 15);
     this.camera.lookAt(0, 0, 0);
     this.controls.update();
 
