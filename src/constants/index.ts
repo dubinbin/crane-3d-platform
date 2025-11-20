@@ -2,9 +2,10 @@ export const OFFSET_ROTATION_ANGLE = 83;
 
 export const OFFSET_ARM_PITCH_ANGLE = 50;
 
-export const WEBSOCKET_SERVER_URL = "http://localhost:30002";
+export const WEBSOCKET_SERVER_URL = "http://localhost:9999";
 
 export const WEBSOCKET_RESPONSE_CODE_MAP = {
+    TASK_CURRENT_STATUS: 0,
     CURRENT_MOVING_POSTURE: 20,
     CURRENT_MOVING_ANGLE: 201,
     CURRENT_MOVING_DISTANCE: 202,

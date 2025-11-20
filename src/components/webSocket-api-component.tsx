@@ -8,6 +8,7 @@ import {
   calcRotationAngle,
   calculatePostureAbility,
 } from "../utils/posture-ability";
+import { AlertModalManager } from "./alert-model";
 // import { useStore } from "../store";
 
 export const WebSocketAPIComponent = () => {
@@ -111,18 +112,34 @@ export const WebSocketAPIComponent = () => {
 
       // 在这里可以根据消息类型进行不同的处理
       // 例如：event code here
-      switch (message.type) {
-        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE: {
+      switch (message.type.toString()) {
+        case WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS.toString(): {
+          const eventData: number[] = message.valueArray1;
+          handleTaskCurrentStatus(eventData);
+          break;
+        }
+        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE.toString(): {
           const eventData: number[] = message.valueArray2;
           setFirstCraneData(eventData);
           break;
         }
-        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_ANGLE:
+        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_ANGLE.toString():
           console.log("Handle message type 1");
           break;
         default:
           console.log("other unknown message type :", message.type);
           break;
+      }
+    };
+
+    const handleTaskCurrentStatus = (eventData: number[]) => {
+      if (eventData[0] === 1) {
+        AlertModalManager.current?.show({
+          title: "碰撞预警",
+          message: "塔吊碰撞预警，请及时处理",
+          type: "warning",
+          duration: 2000,
+        });
       }
     };
 
@@ -132,19 +149,20 @@ export const WebSocketAPIComponent = () => {
 
     // 使用WebSocketService的方法来监听事件
     webSocketService.on("connect", handleConnect);
-    webSocketService.on("client-msg", handleServerMsg);
+    webSocketService.on("server-msg", handleServerMsg);
     webSocketService.on("disconnect", handleDisconnect);
 
     // 清理函数
     return () => {
       webSocketService.off("connect", handleConnect);
-      webSocketService.off("client-msg", handleServerMsg);
+      webSocketService.off("server-msg", handleServerMsg);
       webSocketService.off("disconnect", handleDisconnect);
     };
   }, [cranelist]);
 
   const setFirstCraneData = (eventData: number[]) => {
-    const matchItem = cranelist.find((c) => c.socketId === "1");
+    const matchItem = cranelist.find((c) => c.name === "TC1");
+    console.log("matchItem", matchItem);
     if (matchItem) {
       const originalRotation = parseFloat(eventData[0].toFixed(2));
       const rotation = calcRotationAngle(originalRotation);

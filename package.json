@@ -7,15 +7,18 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:start": "npm run build && node index.js"
   },
   "dependencies": {
     "@ant-design/icons": "5.x",
     "@react-three/fiber": "^9.3.0",
     "antd": "^5.27.4",
     "eventemitter3": "^5.0.1",
+    "express": "^5.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "three": "^0.180.0",
     "uuid": "^13.0.0",

@@ -41,7 +41,7 @@ class WebSocketService {
       transports: ['websocket', 'polling'],
       timeout: 20000,
       forceNew: true,
-      auth: this.authConfig || {},
+      // auth: this.authConfig || {},
     });
 
     this.setupEventListeners();
@@ -140,7 +140,7 @@ class WebSocketService {
       this.socket = null;
       oldSocket.disconnect();
       
-      const serverUrl = import.meta.env.DEV ? 'http://localhost:30002' : '/';
+      const serverUrl = import.meta.env.DEV ? WEBSOCKET_SERVER_URL : '/';
       
       this.socket = io(serverUrl, {
         transports: ['websocket', 'polling'],
@@ -203,9 +203,9 @@ class WebSocketService {
   /**
    * 发送消息到服务器
    * @param event 事件名称
-   * @param data 数据
+   * @param data 数据（支持字符串、ArrayBuffer、Uint8Array等）
    */
-  emit(event: string, data?: string): void {
+  emit(event: string, data?: string | ArrayBuffer | Uint8Array): void {
     if (!this.socket || !this.isConnected) {
       console.warn('WebSocket not connected, cannot send message');
       return;
