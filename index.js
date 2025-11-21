@@ -49,17 +49,20 @@ app.use(cors({
   credentials: true
 }));
 
-// 托管静态文件 - 服务 dist 文件夹
-app.use(express.static(path.join(__dirname, '/dist')));
+// 【重要】动态资源路由必须在 dist 静态文件之前配置
+// 这样可以确保动态资源不会被 dist 目录中的旧文件覆盖
 
-// 托管 PCD 文件目录
+// 托管 JSON 文件目录（动态配置文件，优先级最高）
+app.use('/json', express.static(path.join(__dirname, '/public/json')));
+
+// 托管 PCD 文件目录（点云数据，动态更新）
 app.use('/pcd', express.static(path.join(__dirname, '/public/pcd')));
 
-// 托管模型文件目录
+// 托管模型文件目录（3D模型，动态更新）
 app.use('/model', express.static(path.join(__dirname, '/public/model')));
 
-// 托管 JSON 文件目录
-app.use('/json', express.static(path.join(__dirname, '/public/json')));
+// 托管静态文件 - 服务 dist 文件夹（打包的前端资源）
+app.use(express.static(path.join(__dirname, '/dist')));
 
 // 配置 Socket.IO
 const io = new SocketIOServer(server, {
