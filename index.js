@@ -5,11 +5,8 @@ import net from "net";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import dotenv from "dotenv";
+import fs from "fs";
 
-dotenv.config();
-
-console.log(process.env.TCP_HOST, process.env.TCP_PORT);
 const app = express();
 
 // 获取当前文件的目录路径 (ES6 模块中的 __dirname 替代方案)
@@ -22,9 +19,26 @@ const server = http.createServer(app);
 const host = "localhost";
 const serverPort = 9999;
 
+let jsonData = {
+  tcp_server_host: "localhost",
+  tcp_server_port: 9999,
+};
+
+try {
+  const jsonFilePath = path.join(__dirname, '/public/json/index.json');
+  const jsonFileData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
+  jsonData = {
+    ...jsonData,
+    ...jsonFileData,
+  };
+} catch (error) {
+  console.error('can not read json file:', error);
+  process.exit(1);
+}
+
 // TCP 服务器配置
-const TCP_HOST = process.env.TCP_HOST || "192.168.20.147";
-const TCP_PORT = process.env.TCP_PORT || 12345;
+const TCP_HOST = jsonData.tcp_server_host;
+const TCP_PORT = jsonData.tcp_server_port;
 
 // 配置CORS
 app.use(cors({

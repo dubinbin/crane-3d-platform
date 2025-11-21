@@ -131,13 +131,13 @@ export class PointCloudViewer {
 
     console.log('点云查看器初始化完成');
 
+
+    async function init(_this: PointCloudViewer) {
+
     // 检查URL参数
     const urlParams = new URLSearchParams(window.location.search);
-    const pcdId = urlParams.get('pcdId');
     const densityParam = urlParams.get('density');
-    const configId = urlParams.get('configId');
-    this.configId = configId || '';
-
+    await _this.fetchJsonAndHandle();
     // 设置点云密度选择框的值（等待DOM加载完成）
     // React组件也会设置，这里作为备用确保在加载点云前值已设置
     const setDensitySelect = () => {
@@ -155,12 +155,8 @@ export class PointCloudViewer {
       // DOM已加载，但React组件可能还没渲染，延迟一点设置
       setTimeout(setDensitySelect, 100);
     }
-
-    if (pcdId) {
-      console.log('pcdId', pcdId);
-      // 从本地服务器获取 PCD 文件
-      this.fetchFileAndHandle(`/pcd/${pcdId}.pcd`, `${pcdId}.pcd`);
     }
+    init.call(this, this);
   }
 
   /**
@@ -327,7 +323,6 @@ export class PointCloudViewer {
           window.currentFileName = fileObj.name;
           const pointData = await this.loadPCD(fileObj);
           this.updateFileInfo(pointData, fileObj.name);
-          this.fetchJsonAndHandle();
         } catch (error) {
           alert('加载PCD文件失败: ' + (error as Error).message);
           console.error(error);
@@ -341,10 +336,11 @@ export class PointCloudViewer {
   }
 
   async fetchJsonAndHandle(): Promise<void> {
-    if (!this.configId) return;
     try {
       const { addCrane } = useStore.getState();
-      const jsonData = await fetchJson(this.configId);
+      const jsonData = await fetchJson();
+      // 从本地服务器获取 PCD 文件
+      await this.fetchFileAndHandle(`/pcd/${jsonData.pcd_file_name}.pcd`, `${jsonData.pcd_file_name}.pcd`);
       if (jsonData) {
         const {craneList} = jsonData;
         craneList.forEach((crane: { crane_id: string; crane_name: string; crane_type: CraneType; crane_position: { x: number; y: number; z: number }; crane_height: number }) => {
