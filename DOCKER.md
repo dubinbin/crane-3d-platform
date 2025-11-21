@@ -2,7 +2,17 @@
 
 ## 快速开始
 
-### 方法 1: 使用 Docker Compose (推荐)
+### 方法 1: 使用启动脚本 (最简单)
+
+```bash
+# 首次启动或重新构建
+./docker-start.sh
+
+# 停止容器
+./docker-stop.sh
+```
+
+### 方法 2: 使用 Docker Compose (推荐)
 
 ```bash
 # 构建并启动容器
@@ -21,10 +31,11 @@ docker-compose down
 # 构建镜像
 docker build -t towercrane-3dview .
 
-# 运行容器
+# 运行容器（带 public 目录映射）
 docker run -d \
   --name towercrane-3dview \
   -p 9999:9999 \
+  -v $(pwd)/public:/app/public:ro \
   --restart unless-stopped \
   towercrane-3dview
 
@@ -42,6 +53,48 @@ docker rm towercrane-3dview
 
 启动后，访问: `http://localhost:9999`
 
+## 📁 文件管理 (PCD/模型/JSON)
+
+### 目录映射
+
+项目已配置 `public` 目录的 volume 映射，你可以直接在宿主机上管理文件：
+
+```
+宿主机目录          ->  容器内路径
+./public/pcd/       ->  /app/public/pcd/
+./public/model/     ->  /app/public/model/
+./public/json/      ->  /app/public/json/
+```
+
+### 添加新文件
+
+**无需重启容器！** 直接在宿主机操作：
+
+```bash
+# 添加 PCD 文件
+cp your_file.pcd ./public/pcd/
+
+# 添加模型文件
+cp your_model.fbx ./public/model/
+
+# 添加 JSON 文件
+cp your_data.json ./public/json/
+```
+
+文件会立即在应用中可用，访问路径：
+- PCD 文件: `http://localhost:9999/pcd/your_file.pcd`
+- 模型文件: `http://localhost:9999/model/your_model.fbx`
+- JSON 文件: `http://localhost:9999/json/your_data.json`
+
+### 权限说明
+
+默认配置为**只读模式** (`:ro`)，防止容器修改宿主机文件。如需容器内写入，修改 `docker-compose.yml`：
+
+```yaml
+volumes:
+  - ./public:/app/public  # 移除 :ro 即可读写
+```
+
 ## 网络配置说明
 
 ### TCP 服务器连接
@@ -56,6 +109,7 @@ docker rm towercrane-3dview
 docker run -d \
   --name towercrane-3dview \
   --network host \
+  -v $(pwd)/public:/app/public:ro \
   --restart unless-stopped \
   towercrane-3dview
 ```
@@ -98,6 +152,7 @@ services:
 docker run -d \
   --name towercrane-3dview \
   -p 9999:9999 \
+  -v $(pwd)/public:/app/public:ro \
   -e TCP_HOST=192.168.20.147 \
   -e TCP_PORT=12345 \
   towercrane-3dview
@@ -152,6 +207,8 @@ services:
       - NODE_ENV=production
       - TCP_HOST=${TCP_HOST:-192.168.20.147}
       - TCP_PORT=${TCP_PORT:-12345}
+    volumes:
+      - ./public:/app/public:ro
     restart: unless-stopped
     # 资源限制
     deploy:

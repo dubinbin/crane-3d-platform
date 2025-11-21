@@ -34,6 +34,9 @@ COPY --from=builder /app/dist ./dist
 # 复制服务器文件
 COPY index.js ./
 
+# 注意: public 目录通过 volume 挂载，不需要在镜像中复制
+# 参考 docker-compose.yml 中的 volumes 配置
+
 # 暴露端口
 EXPOSE 9999
 

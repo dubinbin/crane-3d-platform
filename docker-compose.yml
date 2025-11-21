@@ -23,6 +23,12 @@ services:
     networks:
       - towercrane-network
 
+    # 挂载 public 目录到宿主机，方便更新 PCD/模型/JSON 文件
+    volumes:
+      - ./public:/app/public:ro # 只读模式，防止容器修改宿主机文件
+      # 如果需要容器内也能写入，去掉 :ro
+      # - ./public:/app/public
+
 networks:
   towercrane-network:
     driver: bridge

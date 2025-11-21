@@ -7,6 +7,9 @@ yarn.lock
 # 构建产物（会在容器内重新构建）
 dist
 
+# 静态文件目录（通过 volume 挂载）
+public
+
 # 开发文件
 .git
 .gitignore
