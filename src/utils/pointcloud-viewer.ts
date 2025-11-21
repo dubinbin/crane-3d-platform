@@ -35,7 +35,6 @@ export class PointCloudViewer {
   private craneManager: CraneManager;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
-  private configId: string | null = null;
   constructor(containerId: string, options: ViewerOptions = {}) {
     const containerElement = document.getElementById(containerId);
     
