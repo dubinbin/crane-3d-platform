@@ -25,7 +25,7 @@ services:
 
     # 挂载桌面上的 public 目录到容器内，方便更新 PCD/模型/JSON 文件
     volumes:
-      - /Users/ryderdu/Desktop/public:/app/public:ro # 只读模式，防止容器修改宿主机文件
+      - /home/hkcrc/app/public:/app/public:ro # 只读模式，防止容器修改宿主机文件
       # 如果需要容器内也能写入，去掉 :ro
       # - /Users/ryderdu/Desktop/public:/app/public
 
