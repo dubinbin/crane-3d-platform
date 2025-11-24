@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   towercrane-3dview:
     build:
@@ -11,9 +9,10 @@ services:
     environment:
       - NODE_ENV=production
     # 如果需要修改 TCP 服务器地址，可以通过环境变量传入
+    # 默认使用 host.docker.internal 访问宿主机 localhost
     # environment:
-    #   - TCP_HOST=192.168.20.147
-    #   - TCP_PORT=12345
+    #   - TCP_HOST=host.docker.internal
+    #   - TCP_PORT=10101
     restart: unless-stopped
     # 使用 host 网络模式以便访问局域网内的 TCP 服务器
     # 注意：host 模式在 Docker Desktop (Mac/Windows) 上不完全支持
@@ -22,12 +21,17 @@ services:
     # 或者使用桥接网络（默认）
     networks:
       - towercrane-network
+    # 添加 extra_hosts 以允许容器访问宿主机 localhost
+    # 在 Linux 上，使用 Docker 网关 IP (172.17.0.1) 或宿主机实际 IP
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Docker 20.10+ 支持
+      # 如果上面的不工作，可以手动指定网关 IP：
+      # - "host.docker.internal:172.17.0.1"
 
-    # 挂载桌面上的 public 目录到容器内，方便更新 PCD/模型/JSON 文件
+    # 挂载宿主机上的 public 目录到容器内，方便更新 PCD/模型/JSON 文件
     volumes:
       - /home/hkcrc/app/public:/app/public:ro # 只读模式，防止容器修改宿主机文件
       # 如果需要容器内也能写入，去掉 :ro
-      # - /Users/ryderdu/Desktop/public:/app/public
 
 networks:
   towercrane-network:

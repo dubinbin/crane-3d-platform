@@ -26,19 +26,29 @@ let jsonData = {
 
 try {
   const jsonFilePath = path.join(__dirname, '/public/json/index.json');
-  const jsonFileData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
-  jsonData = {
-    ...jsonData,
-    ...jsonFileData,
-  };
+  if (fs.existsSync(jsonFilePath)) {
+    const jsonFileData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
+    jsonData = {
+      ...jsonData,
+      ...jsonFileData,
+    };
+    console.log('✅ 成功加载配置文件:', jsonFilePath);
+  } else {
+    console.warn('⚠️  配置文件不存在，使用默认配置:', jsonFilePath);
+    console.warn('   默认 TCP 服务器:', jsonData.tcp_server_host, ':', jsonData.tcp_server_port);
+  }
 } catch (error) {
-  console.error('can not read json file:', error);
-  process.exit(1);
+  console.error('❌ 读取配置文件失败:', error.message);
+  console.warn('⚠️  使用默认配置继续运行');
+  // 不再退出，使用默认配置继续运行
 }
 
 // TCP 服务器配置
-const TCP_HOST = jsonData.tcp_server_host;
-const TCP_PORT = jsonData.tcp_server_port;
+// 优先使用环境变量，如果没有则使用配置文件中的值
+// 如果配置文件中是 localhost，在 Docker 容器中需要替换为 host.docker.internal
+const TCP_HOST = process.env.TCP_HOST || 
+  (jsonData.tcp_server_host === 'localhost' ? 'host.docker.internal' : jsonData.tcp_server_host);
+const TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : jsonData.tcp_server_port;
 
 // 配置CORS
 app.use(cors({
