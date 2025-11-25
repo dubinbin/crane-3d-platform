@@ -22,9 +22,8 @@ class WebSocketService {
   /**
    * 连接到WebSocket服务器
    * @param url 服务器地址，默认为开发环境地址
-   * @param auth 认证配置
    */
-  connect(url?: string, auth?: AuthConfig): void {
+  connect(url?: string): void {
     if (this.socket?.connected) {
       console.log('WebSocket already connected');
       return;
@@ -32,16 +31,11 @@ class WebSocketService {
 
     const serverUrl = url || (import.meta.env.DEV ? WEBSOCKET_SERVER_URL : '/');
     
-    // 存储认证配置，用于重连时使用
-    if (auth) {
-      this.authConfig = auth;
-    }
     
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 20000,
       forceNew: true,
-      // auth: this.authConfig || {},
     });
 
     this.setupEventListeners();

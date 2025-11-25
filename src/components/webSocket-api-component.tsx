@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { webSocketService, type AuthConfig } from "../services/websocket";
+import { webSocketService } from "../services/websocket";
 // import { Button } from "antd";
 import { Deserialize, type Message } from "../utils/deserialize";
 import { WEBSOCKET_RESPONSE_CODE_MAP } from "../constants";
@@ -24,18 +24,8 @@ export const WebSocketAPIComponent = () => {
   const cranelist = useStore((state) => state.cranes);
 
   useEffect(() => {
-    // 设置认证信息并连接
-    const authConfig: AuthConfig = {
-      token:
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3MzVkNTMzNy1kNTMwLTRjZWItYmVkZi01ZGY3NGViMjgzYTQiLCJwaG9uZU51bWJlciI6ImhrY3JjIiwiaWF0IjoxNzYwOTUzNTI0LCJleHAiOjE3NjE1NTgzMjQsImF1ZCI6ImhrY3JjIn0.XRKeXPAWdMf9ZTrQzss9q0U6qfQuCD_Sj78Il_1kpZI",
-      userID: "735d5337-d530-4ceb-bedf-5df74eb283a4",
-      userName: "HKCRC",
-      placeID: "1",
-      mode: "client",
-    };
-
     // 先连接websocket
-    webSocketService.connect(undefined, authConfig);
+    webSocketService.connect();
 
     // 定义事件处理函数
     const handleConnect = () => {
@@ -112,23 +102,35 @@ export const WebSocketAPIComponent = () => {
 
       // 在这里可以根据消息类型进行不同的处理
       // 例如：event code here
-      switch (message.type.toString()) {
-        case WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS.toString(): {
-          const eventData: number[] = message.valueArray1;
-          handleTaskCurrentStatus(eventData);
-          break;
-        }
-        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE.toString(): {
-          const eventData: number[] = message.valueArray2;
-          setFirstCraneData(eventData);
-          break;
-        }
-        case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_ANGLE.toString():
-          console.log("Handle message type 1");
-          break;
-        default:
-          console.log("other unknown message type :", message.type);
-          break;
+      // switch (message.type.toString()) {
+      //   case WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS.toString(): {
+      //     const eventData: number[] = message.valueArray1;
+      //     handleTaskCurrentStatus(eventData);
+      //     break;
+      //   }
+      //   case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE.toString(): {
+      //     const eventData: number[] = message.valueArray2;
+      //     setFirstCraneData(eventData);
+      //     break;
+      //   }
+      //   case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_ANGLE.toString():
+      //     console.log("Handle message type 1");
+      //     break;
+      //   default:
+      //     console.log("other unknown message type :", message.type);
+      //     break;
+      // }
+      if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS) {
+        const eventData: number[] = message.valueArray1;
+        handleTaskCurrentStatus(eventData);
+        return;
+      }
+
+      if (message.type >= 100 && message.type <= 200) {
+        const eventData: number[] = message.valueArray2;
+        const craneId = message.type;
+        sendToDifferentCrane(eventData, craneId);
+        return;
       }
     };
 
@@ -160,8 +162,8 @@ export const WebSocketAPIComponent = () => {
     };
   }, [cranelist]);
 
-  const setFirstCraneData = (eventData: number[]) => {
-    const matchItem = cranelist.find((c) => c.name === "TC1");
+  const sendToDifferentCrane = (eventData: number[], craneId: number) => {
+    const matchItem = cranelist.find((c) => c.id === craneId.toString());
     console.log("matchItem", matchItem);
     if (matchItem) {
       const originalRotation = parseFloat(eventData[0].toFixed(2));
@@ -197,26 +199,7 @@ export const WebSocketAPIComponent = () => {
     }
   };
 
-  // const clientRelationRegister = () => {
-  //   // 检查连接状态
-  //   if (!webSocketService.getConnectionStatus()) {
-  //     console.warn("WebSocket not connected, please wait for connection");
-  //     return;
-  //   }
-
-  //   const message = JSON.stringify({
-  //     userID: "735d5337-d530-4ceb-bedf-5df74eb283a4",
-  //     towercraneID: "11",
-  //     userName: "HKCRC",
-  //     placeID: "1",
-  //   });
-
-  //   webSocketService.emit("client-relation-register", message);
-  // };
-
   return (
-    <div style={{ position: "absolute", top: 0, right: 0, zIndex: 1000 }}>
-      {/* <Button onClick={clientRelationRegister}>clientRelationRegister</Button> */}
-    </div>
+    <div style={{ position: "absolute", top: 0, right: 0, zIndex: 1000 }}></div>
   );
 };
