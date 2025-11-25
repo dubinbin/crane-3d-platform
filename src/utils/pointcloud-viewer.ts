@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { PCDLoader } from 'three/examples/jsm/loaders/PCDLoader.js';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { PCDParser } from './pcd-parser';
 import { FileUtils } from './file-util';
@@ -32,6 +33,7 @@ export class PointCloudViewer {
   private controls: OrbitControls;
   private pointCloud: THREE.Points | null = null;
   private fbxLoader: FBXLoader;
+  private pcdLoader: PCDLoader;
   private craneManager: CraneManager;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
@@ -72,6 +74,7 @@ export class PointCloudViewer {
     // this.camera.position.set(0, 50, 0);
     
     this.fbxLoader = new FBXLoader();
+    this.pcdLoader = new PCDLoader();
 
     // 创建渲染器
     this.renderer = new THREE.WebGLRenderer({
@@ -381,35 +384,128 @@ export class PointCloudViewer {
     count: number;
   }> {
     try {
-      let data: ArrayBuffer | string;
+      let url: string;
 
       if (source instanceof File) {
-        const result = await FileUtils.readFile(source);
-        if (typeof result === 'string' || result instanceof ArrayBuffer) {
-          data = result;
-        } else {
-          throw new Error('读取文件返回了未知类型');
-        }
+        // 如果是文件对象，创建临时URL
+        url = URL.createObjectURL(source);
+        window.currentFileName = source.name;
       } else if (typeof source === 'string') {
-        const response = await fetch(source);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        data = await response.text();
+        url = source;
       } else {
         throw new Error('不支持的数据源类型');
       }
 
-      // 保存原始数据供重新解析使用
-      window.currentPCDData = data;
+      // 保存原始数据供重新解析使用（在加载前保存）
+      let shouldCleanupUrl = false;
+      if (source instanceof File) {
+        const result = await FileUtils.readFile(source);
+        if (typeof result === 'string' || result instanceof ArrayBuffer) {
+          window.currentPCDData = result;
+        }
+        shouldCleanupUrl = true; // 标记需要清理临时URL
+      } else {
+        // 对于URL，尝试获取数据
+        try {
+          const response = await fetch(url);
+          if (response.ok) {
+            const data = await response.text();
+            window.currentPCDData = data;
+          }
+        } catch (e) {
+          console.warn('无法保存PCD数据供重新解析:', e);
+        }
+      }
 
-      const pointData = PCDParser.parsePCD(data);
+      // 使用Three.js官方的PCDLoader加载
+      const points = await new Promise<THREE.Points>((resolve, reject) => {
+        this.pcdLoader.load(
+          url,
+          (points) => {
+            // 加载完成后清理临时URL
+            if (shouldCleanupUrl) {
+              URL.revokeObjectURL(url);
+            }
+            resolve(points);
+          },
+          undefined,
+          (error) => {
+            // 即使失败也要清理临时URL
+            if (shouldCleanupUrl) {
+              URL.revokeObjectURL(url);
+            }
+            reject(error);
+          }
+        );
+      });
+
+      // 从Three.js的Points对象中提取数据
+      const geometry = points.geometry;
+      const positionAttribute = geometry.getAttribute('position') as THREE.BufferAttribute;
+      const colorAttribute = geometry.getAttribute('color') as THREE.BufferAttribute;
+
+      if (!positionAttribute) {
+        throw new Error('PCD文件不包含位置数据');
+      }
+
+      const positions = positionAttribute.array as Float32Array;
+      let colors: Float32Array;
+
+      if (colorAttribute) {
+        colors = colorAttribute.array as Float32Array;
+      } else {
+        // 如果没有颜色数据，创建默认颜色
+        const count = positions.length / 3;
+        colors = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+          const t = i / count;
+          colors[i * 3] = 0.2 + t * 0.3;
+          colors[i * 3 + 1] = 0.6 + t * 0.2;
+          colors[i * 3 + 2] = 1.0 - t * 0.3;
+        }
+      }
+
+      const pointData = {
+        positions: positions,
+        colors: colors,
+        count: positions.length / 3,
+      };
+
       this.renderPointCloud(pointData);
 
       return pointData;
     } catch (error) {
       console.error('加载PCD文件失败:', error);
-      throw error;
+      // 如果PCDLoader失败，尝试使用自定义解析器作为后备
+      console.log('尝试使用自定义解析器作为后备...');
+      try {
+        let data: ArrayBuffer | string;
+
+        if (source instanceof File) {
+          const result = await FileUtils.readFile(source);
+          if (typeof result === 'string' || result instanceof ArrayBuffer) {
+            data = result;
+          } else {
+            throw new Error('读取文件返回了未知类型');
+          }
+        } else if (typeof source === 'string') {
+          const response = await fetch(source);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          data = await response.text();
+        } else {
+          throw new Error('不支持的数据源类型');
+        }
+
+        window.currentPCDData = data;
+        const pointData = PCDParser.parsePCD(data);
+        this.renderPointCloud(pointData);
+        return pointData;
+      } catch (fallbackError) {
+        console.error('自定义解析器也失败:', fallbackError);
+        throw error; // 抛出原始错误
+      }
     }
   }
 

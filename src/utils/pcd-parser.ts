@@ -227,8 +227,10 @@ export class PCDParser {
             const type = types[j] || "F";
   
             let value = 0;
+            let floatValue = 0;
             if (type === "F" && size === 4) {
-              value = view.getFloat32(offset + fieldOffset, true);
+              floatValue = view.getFloat32(offset + fieldOffset, true);
+              value = floatValue;
             } else if (type === "U" && size === 1) {
               value = view.getUint8(offset + fieldOffset);
             } else if (type === "U" && size === 4) {
@@ -236,16 +238,45 @@ export class PCDParser {
             } else if (type === "I" && size === 4) {
               value = view.getInt32(offset + fieldOffset, true);
             }
-  
+
             // 根据字段名分配值
             if (field === "x") x = value;
             else if (field === "y") y = value;
             else if (field === "z") z = value;
             else if (field === "rgb" || field === "rgba") {
-              // RGB打包在一个32位整数中
-              r = ((value >> 16) & 0xff) / 255.0;
-              g = ((value >> 8) & 0xff) / 255.0;
-              b = (value & 0xff) / 255.0;
+              // RGB字段处理：完全按照U类型的方式处理，无论声明为U还是F类型
+              // 因为即使声明为F类型，实际存储的也是打包的RGB整数
+              if ((type === "U" || type === "F") && size === 4) {
+                // 直接从原始字节读取32位无符号整数（与U类型完全相同）
+                // 格式：0xRRGGBB (高位到低位：R, G, B)
+                const rgbValue = view.getUint32(offset + fieldOffset, true);
+                
+                // 使用与U类型完全相同的RGB提取方式
+                r = ((rgbValue >> 16) & 0xff) / 255.0;
+                g = ((rgbValue >> 8) & 0xff) / 255.0;
+                b = (rgbValue & 0xff) / 255.0;
+              }
+            } else if (field === "r") {
+              // 单独的r字段
+              if (type === "F" && size === 4) {
+                r = floatValue > 1.0 ? Math.min(floatValue / 255.0, 1.0) : Math.max(0, Math.min(floatValue, 1.0));
+              } else if (type === "U" && size === 1) {
+                r = value / 255.0;
+              }
+            } else if (field === "g") {
+              // 单独的g字段
+              if (type === "F" && size === 4) {
+                g = floatValue > 1.0 ? Math.min(floatValue / 255.0, 1.0) : Math.max(0, Math.min(floatValue, 1.0));
+              } else if (type === "U" && size === 1) {
+                g = value / 255.0;
+              }
+            } else if (field === "b") {
+              // 单独的b字段
+              if (type === "F" && size === 4) {
+                b = floatValue > 1.0 ? Math.min(floatValue / 255.0, 1.0) : Math.max(0, Math.min(floatValue, 1.0));
+              } else if (type === "U" && size === 1) {
+                b = value / 255.0;
+              }
             }
   
             fieldOffset += size;

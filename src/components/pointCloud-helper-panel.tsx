@@ -40,7 +40,7 @@ export default function PointCloudHelperPanel() {
     ) as HTMLSelectElement;
 
     if (controlPanelRef.current) {
-      controlPanelRef.current.style.opacity = "0";
+      controlPanelRef.current.style.visibility = "hidden";
     }
     if (densitySelect) {
       densitySelect.value = selectedDensity;
@@ -100,7 +100,15 @@ export default function PointCloudHelperPanel() {
         </div>
 
         <div className="panel-header">
-          <h3 style={{ margin: 0, color: "#FFFFFFFF", fontSize: `calc(18px * var(--scale, 1))` }}>🔬 设置面板</h3>
+          <h3
+            style={{
+              margin: 0,
+              color: "#FFFFFFFF",
+              fontSize: `calc(18px * var(--scale, 1))`,
+            }}
+          >
+            🔬 设置面板
+          </h3>
         </div>
 
         <div className="control-content">
