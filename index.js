@@ -24,31 +24,40 @@ let jsonData = {
   tcp_server_port: 9999,
 };
 
-try {
+// 读取配置文件的函数（每次调用都重新读取，避免缓存）
+function loadConfigFromFile() {
+  const defaultConfig = {
+    tcp_server_host: "localhost",
+    tcp_server_port: 9999,
+  };
+  
   const jsonFilePath = path.join(__dirname, '/public/json/index.json');
-  if (fs.existsSync(jsonFilePath)) {
-    const jsonFileData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
-    jsonData = {
-      ...jsonData,
-      ...jsonFileData,
-    };
-    console.log('✅ 成功加载配置文件:', jsonFilePath);
-  } else {
-    console.warn('⚠️  配置文件不存在，使用默认配置:', jsonFilePath);
-    console.warn('   默认 TCP 服务器:', jsonData.tcp_server_host, ':', jsonData.tcp_server_port);
+  try {
+    if (fs.existsSync(jsonFilePath)) {
+      // 每次读取都重新读取文件，不使用缓存
+      const jsonFileData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
+      return {
+        ...defaultConfig,
+        ...jsonFileData,
+      };
+    } else {
+      console.warn('⚠️  配置文件不存在，使用默认配置:', jsonFilePath);
+      return defaultConfig;
+    }
+  } catch (error) {
+    console.error('❌ 读取配置文件失败:', error.message);
+    return defaultConfig;
   }
-} catch (error) {
-  console.error('❌ 读取配置文件失败:', error.message);
-  console.warn('⚠️  使用默认配置继续运行');
-  // 不再退出，使用默认配置继续运行
 }
 
-// TCP 服务器配置
-// 优先使用环境变量，如果没有则使用配置文件中的值
-// 如果配置文件中是 localhost，在 Docker 容器中需要替换为 host.docker.internal
-const TCP_HOST = process.env.TCP_HOST || 
+// 初始化时读取一次配置
+jsonData = loadConfigFromFile();
+console.log('✅ 成功加载配置文件');
+
+// TCP 服务器配置（会在服务器启动后通过 HTTP 接口重新获取最新配置）
+let TCP_HOST = process.env.TCP_HOST || 
   (jsonData.tcp_server_host === 'localhost' ? 'host.docker.internal' : jsonData.tcp_server_host);
-const TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : jsonData.tcp_server_port;
+let TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : jsonData.tcp_server_port;
 
 // 配置CORS
 app.use(cors({
@@ -61,6 +70,17 @@ app.use(cors({
 
 // 【重要】动态资源路由必须在 dist 静态文件之前配置
 // 这样可以确保动态资源不会被 dist 目录中的旧文件覆盖
+
+// API 接口：获取配置文件（每次请求都重新读取，避免缓存）
+app.get('/api/config', (req, res) => {
+  const config = loadConfigFromFile();
+  // 设置无缓存响应头
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Content-Type', 'application/json');
+  res.json(config);
+});
 
 // 托管 JSON 文件目录（动态配置文件，优先级最高）
 app.use('/json', express.static(path.join(__dirname, '/public/json')));
@@ -90,6 +110,25 @@ let tcpClient = null;
 let tcpConnected = false;
 let reconnectTimer = null;
 let isShuttingDown = false;
+
+// 通过 HTTP 接口获取最新配置（避免文件系统缓存）
+async function fetchConfigFromAPI() {
+  try {
+    const response = await fetch(`http://${host}:${serverPort}/api/config`);
+    if (response.ok) {
+      const config = await response.json();
+      console.log('🔍 获取到的配置:', JSON.stringify(config, null, 2));
+      console.log('✅ 通过 API 获取最新配置');
+      return config;
+    } else {
+      console.warn('⚠️  API 获取配置失败，使用已加载的配置');
+      return jsonData;
+    }
+  } catch (error) {
+    console.warn('⚠️  API 获取配置失败:', error.message, '，使用已加载的配置');
+    return jsonData;
+  }
+}
 
 // 连接到 TCP 服务器
 function connectToTcpServer() {
@@ -130,15 +169,27 @@ function connectToTcpServer() {
     
     // 5秒后自动重连（只在非关闭状态下重连）
     if (!reconnectTimer && !isShuttingDown) {
-      reconnectTimer = setTimeout(() => {
+      reconnectTimer = setTimeout(async () => {
         reconnectTimer = null;
         if (!isShuttingDown) {
           console.log('🔄 尝试重新连接 TCP 服务器...');
+          // 重连前先获取最新配置
+          const latestConfig = await fetchConfigFromAPI();
+          updateTcpConfig(latestConfig);
           connectToTcpServer();
         }
       }, 5000);
     }
   });
+}
+
+// 更新 TCP 配置
+function updateTcpConfig(config) {
+  jsonData = config;
+  TCP_HOST = process.env.TCP_HOST || 
+    (config.tcp_server_host === 'localhost' ? 'host.docker.internal' : config.tcp_server_host);
+  TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : config.tcp_server_port;
+  console.log(`📝 更新 TCP 配置: ${TCP_HOST}:${TCP_PORT}`);
 }
 
 // Socket.IO 连接处理
@@ -182,11 +233,15 @@ app.get(/^\/(?!(socket\.io|pcd|model|json)\/).*/, (req, res) => {
 // 启动服务器
 async function start() {
   try {
-    server.listen(serverPort, '0.0.0.0', () => {
+    server.listen(serverPort, '0.0.0.0', async () => {
       console.log(`🚀 WebSocket 服务器运行在端口 ${serverPort} (所有网络接口)`);
       console.log(`📡 Web 界面访问: http://${host}:${serverPort}`);
       
-      // 启动后立即连接 TCP 服务器
+      // 服务器启动后，通过 HTTP 接口获取最新配置（避免文件系统缓存）
+      const latestConfig = await fetchConfigFromAPI();
+      updateTcpConfig(latestConfig);
+      
+      // 使用最新配置连接 TCP 服务器
       connectToTcpServer();
     });
   } catch (error) {
