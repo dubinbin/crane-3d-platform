@@ -187,7 +187,7 @@ export const WebSocketAPIComponent = () => {
           .getCraneManager()
           .updateCraneArmPitch(matchItem.id, carDistance);
       }
-      const ropeLength = parseFloat(eventData[2].toFixed(2));
+      const ropeLength = parseFloat((eventData[2] / 10).toFixed(2));
       updateRopeLength(matchItem.id, ropeLength);
       if (window.viewer) {
         window.viewer
