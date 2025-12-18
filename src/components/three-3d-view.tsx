@@ -14,14 +14,14 @@ export default function Three3DView() {
 
     // 从URL参数获取宽度和高度
     const urlParams = new URLSearchParams(window.location.search);
-    const widthParam = urlParams.get('width');
-    const heightParam = urlParams.get('height');
-    
+    const widthParam = urlParams.get("width");
+    const heightParam = urlParams.get("height");
+
     // 确定使用的宽度和高度
-    const width = widthParam ? `${widthParam}px` : '100%';
-    const height = heightParam ? `${heightParam}px` : '100vh';
-    const position = widthParam || heightParam ? 'absolute' : 'fixed';
-    const topOffset = '0';
+    const width = widthParam ? `${widthParam}px` : "100%";
+    const height = heightParam ? `${heightParam}px` : "100vh";
+    const position = widthParam || heightParam ? "absolute" : "fixed";
+    const topOffset = "0";
 
     // 保存当前容器引用
     const currentContainer = containerRef.current;
@@ -63,7 +63,7 @@ export default function Three3DView() {
     const viewerOptions: { width?: number; height?: number } = {};
     if (widthParam) viewerOptions.width = parseInt(widthParam, 10);
     if (heightParam) viewerOptions.height = parseInt(heightParam, 10);
-    
+
     const viewer = new PointCloudViewer("viewer-container", viewerOptions);
     viewerRef.current = viewer;
 
@@ -102,23 +102,23 @@ export default function Three3DView() {
 
   // 从URL参数获取宽度和高度（用于初始渲染）
   const urlParams = new URLSearchParams(window.location.search);
-  const widthParam = urlParams.get('width');
-  const heightParam = urlParams.get('height');
-  
-  const containerWidth = widthParam ? `${widthParam}px` : '100%';
-  const containerHeight = heightParam ? `${heightParam}px` : '100vh';
+  const widthParam = urlParams.get("width");
+  const heightParam = urlParams.get("height");
+
+  const containerWidth = widthParam ? `${widthParam}px` : "100%";
+  const containerHeight = heightParam ? `${heightParam}px` : "100vh";
 
   return (
     <div
       ref={containerRef}
-      style={{ 
-        width: containerWidth, 
-        height: containerHeight, 
+      style={{
+        width: containerWidth,
+        height: containerHeight,
         position: "relative",
         top: 0,
         left: 0,
         margin: 0,
-        padding: 0
+        padding: 0,
       }}
     />
   );

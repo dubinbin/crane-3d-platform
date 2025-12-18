@@ -3,6 +3,6 @@
     top: calc(25px * var(--scale, 1));
     left: calc(25px * var(--scale, 1));
     height: 100%;
-
+    display:none;
     z-index: 1;
 }

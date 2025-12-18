@@ -8,6 +8,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { PCDLoader } from 'three/examples/jsm/loaders/PCDLoader.js';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PCDParser } from './pcd-parser';
 import { FileUtils } from './file-util';
 import { CraneManager, type CraneUserData } from './crane-manager';
@@ -32,11 +33,22 @@ export class PointCloudViewer {
   private labelRenderer: CSS2DRenderer;
   private controls: OrbitControls;
   private pointCloud: THREE.Points | null = null;
+  private arcLine: THREE.Points | null = null;
+  private arcTargetMarker: THREE.Object3D | null = null;
   private fbxLoader: FBXLoader;
   private pcdLoader: PCDLoader;
+  private gltfLoader: GLTFLoader;
+  private locationPinTemplate: THREE.Object3D | null = null;
   private craneManager: CraneManager;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
+  private touchPreventHandler: ((e: TouchEvent) => void) | null = null;
+  // 弧线路径动画：保存整条路径点数量，用于线性“填充”显示
+  private arcTotalPoints: number = 0;
+  private arcAnimationStartTime: number | null = null;
+  private arcAnimationDuration = 1500; // ms，整条路径出现时间
+  // 是否循环播放弧线绘制动画
+  private arcLoopEnabled: boolean = false;
   constructor(containerId: string, options: ViewerOptions = {}) {
     const containerElement = document.getElementById(containerId);
     
@@ -75,6 +87,22 @@ export class PointCloudViewer {
     
     this.fbxLoader = new FBXLoader();
     this.pcdLoader = new PCDLoader();
+    this.gltfLoader = new GLTFLoader();
+
+    // 预加载位置标记模型（location pin）
+    this.gltfLoader.load(
+      new URL('../assets/location-pin.glb', import.meta.url).href,
+      (gltf) => {
+        this.locationPinTemplate = gltf.scene;
+        // 可选：统一缩放 / 调整朝向
+        this.locationPinTemplate.scale.set(0.2, 0.2, 0.2);
+        this.locationPinTemplate.rotation.x =  Math.PI / 2;
+      },
+      undefined,
+      (error) => {
+        console.error('加载 location-pin.glb 失败:', error);
+      },
+    );
 
     // 创建渲染器
     this.renderer = new THREE.WebGLRenderer({
@@ -84,6 +112,16 @@ export class PointCloudViewer {
     this.renderer.setSize(this.options.width, this.options.height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setClearColor(this.options.backgroundColor, 1);
+    // 允许触控事件直接作用于 OrbitControls，避免浏览器默认滚动
+    this.renderer.domElement.style.touchAction = 'none';
+    // 部分移动端浏览器需要显式阻止默认滚动行为
+    this.touchPreventHandler = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        e.preventDefault();
+      }
+    };
+    this.renderer.domElement.addEventListener('touchstart', this.touchPreventHandler, { passive: false });
+    this.renderer.domElement.addEventListener('touchmove', this.touchPreventHandler, { passive: false });
     
     // 启用阴影
     this.renderer.shadowMap.enabled = true;
@@ -110,9 +148,18 @@ export class PointCloudViewer {
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.target.set(0, 0, 0);
+    this.controls.enablePan = true;
+    this.controls.enableZoom = true;
+    this.controls.enableRotate = true;
+    // 移动端：单指旋转，双指缩放+平移
+    this.controls.touches = {
+      ONE: THREE.TOUCH.ROTATE,
+      TWO: THREE.TOUCH.DOLLY_PAN,
+    };
 
     // 初始化 Raycaster 和鼠标位置
     this.raycaster = new THREE.Raycaster();
+    this.raycaster.params.Points.threshold = 0.15; // 提升点云拾取精度
     this.mouse = new THREE.Vector2();
 
     // 添加点击事件监听
@@ -166,8 +213,16 @@ export class PointCloudViewer {
    */
   private setupClickInteraction(): void {
     this.renderer.domElement.addEventListener('click', (event) => {
-      this.onCanvasClick(event);
+      this.onCanvasClick(event, 'mouse');
     });
+
+    this.renderer.domElement.addEventListener("touchstart", (event: TouchEvent) => {
+      event.preventDefault();
+      // 封装触摸事件参数
+  
+      this.onCanvasClick(event, 'touch');
+    }, { passive: false });
+    
 
     // 可选：添加悬停效果
     this.renderer.domElement.addEventListener('mousemove', (event) => {
@@ -178,15 +233,34 @@ export class PointCloudViewer {
   /**
    * 处理画布点击事件
    */
-  private onCanvasClick(event: MouseEvent): void {
-    // 计算鼠标在归一化设备坐标中的位置 (-1 to +1)
+  private onCanvasClick(event: MouseEvent | TouchEvent,  type: 'mouse' | 'touch'): void {
+    let clientX: number, clientY: number;
+    if (type === 'touch') {
+      const touchEvent = event as TouchEvent;
+      clientX = touchEvent.touches[0].clientX;
+      clientY = touchEvent.touches[0].clientY;
+    } else {
+      const mouseEvent = event as MouseEvent;
+      clientX = mouseEvent.clientX;
+      clientY = mouseEvent.clientY;
+    }
+
     const { setCurrentOperationCraneId } = useStore.getState();
     const rect = this.renderer.domElement.getBoundingClientRect();
-    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    this.mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    console.log('mouse', this.mouse);
 
     // 更新射线
     this.raycaster.setFromCamera(this.mouse, this.camera);
+
+    // 尝试拾取点云上的点，并绘制弧线
+    if (this.pointCloud) {
+      const pointHits = this.raycaster.intersectObject(this.pointCloud, false);
+      if (pointHits.length > 0) {
+        this.drawArcFromCraneToPoint(pointHits[0].point.clone());
+      }
+    }
 
     // 获取所有塔吊对象
     const cranes = this.craneManager.getCranes();
@@ -215,8 +289,8 @@ export class PointCloudViewer {
           EventBus.emit(EventName.CRANE_CLICKED, {
             crane: craneInfo,
             screenPosition: {
-              x: event.clientX,
-              y: event.clientY
+              x: clientX,
+              y: clientY
             }
           });
         }
@@ -282,6 +356,271 @@ export class PointCloudViewer {
     const distance = maxSize * 1.5;
     this.camera.position.set(0, 0, distance);
     this.controls.update();
+  }
+
+
+  /**
+   * 启动弧线动画
+   * @param loop 是否循环播放
+   */
+  private startArcAnimation(loop: boolean): void {
+    this.arcLoopEnabled = loop;
+    this.arcAnimationStartTime = performance.now();
+  }
+
+  /**
+   * 绘制吊钩到目标点的弧线并带箭头
+   *  计算动画路径，如果是动臂式塔吊，看看距离决定 1，先旋转后移动小车 2，先移动小车后旋转，尽量减少直接甩大臂
+   *  动臂，如果小车 大转小半径，先移动小车，再转臂
+   *  如果小转大半径，先转臂，再移动小车
+   *  平头塔吊，无论如何先旋转大臂，然后推动小车。
+   */
+  private drawArcFromCraneToPoint(targetPoint: THREE.Vector3, targetCraneId?: string): void {
+    const { currentOperationCraneId } = useStore.getState();
+    const resolvedCraneId = targetCraneId || currentOperationCraneId || 'tc1';
+    
+    let crane = this.craneManager.getCraneById(resolvedCraneId);
+    if (!crane) {
+      // 如果指定ID不存在，退回到第一台塔吊
+      crane = this.craneManager.getCranes()[0];
+      if (!crane) {
+        console.warn('场景中没有可用的塔吊，无法绘制弧线');
+        return;
+      }
+    }
+
+    const userData = crane.userData as CraneUserData;
+    if (!userData.hooksHeader) {
+      console.warn(`塔吊 ${resolvedCraneId} 缺少 hooksHeader，无法绘制弧线`);
+      return;
+    }
+
+    const start = new THREE.Vector3();
+    userData.hooksHeader.getWorldPosition(start);
+
+    // 吊钩位置(小车位置)
+    const carPostion = new THREE.Vector3(start.x, start.y, 0);
+
+    const end = targetPoint.clone();
+
+    // 标记的目标点
+    const endToZ0 = new THREE.Vector3(end.x, end.y, 0);
+
+    // 塔机的位置点
+    const towerPostion = new THREE.Vector3(0.69, -0.52, 0);
+
+    // 小车位置到塔机距离
+    const distanceToTower = carPostion.distanceTo(towerPostion);
+
+    // 目标点到塔机距离
+    const towerDistanceToTargeDistance = towerPostion.distanceTo(endToZ0);
+
+    // 统一在地面平面 (z = 0) 上做路径规划（只考虑平面运动）
+    const car2D = new THREE.Vector3(carPostion.x, carPostion.y, 0);
+    const target2D = new THREE.Vector3(end.x, end.y, 0);
+
+    // 当前小车和目标点相对塔机的极坐标（半径 + 角度）
+    const rCar = distanceToTower;
+    const rTarget = towerDistanceToTargeDistance;
+    const angleCar = Math.atan2(car2D.y - towerPostion.y, car2D.x - towerPostion.x);
+    const angleTarget = Math.atan2(target2D.y - towerPostion.y, target2D.x - towerPostion.x);
+
+    // 规范化角度差，使其在 [-PI, PI]，走最短圆弧
+    let deltaAngle = angleTarget - angleCar;
+    if (deltaAngle > Math.PI) deltaAngle -= Math.PI * 2;
+    if (deltaAngle < -Math.PI) deltaAngle += Math.PI * 2;
+
+    const points: THREE.Vector3[] = [];
+    
+    // 生成圆弧上的点
+    const pushArcPoints = (
+      center: THREE.Vector3,
+      radius: number,
+      fromAngle: number,
+      toAngle: number,
+      segments: number,
+    ) => {
+      for (let i = 0; i <= segments; i++) {
+        const t = i / segments;
+        const angle = fromAngle + (toAngle - fromAngle) * t;
+        const x = center.x + Math.cos(angle) * radius;
+        const y = center.y + Math.sin(angle) * radius;
+        points.push(new THREE.Vector3(x, y, 0));
+      }
+    };
+
+    // 生成直线上的点
+    const pushLinePoints = (
+      from: THREE.Vector3,
+      to: THREE.Vector3,
+      segments: number,
+      skipFirst: boolean = false, // 避免和前一段重复一个点
+    ) => {
+      for (let i = 0; i <= segments; i++) {
+        if (skipFirst && i === 0) continue;
+        const t = i / segments;
+        points.push(new THREE.Vector3().lerpVectors(from, to, t));
+      }
+    };
+
+    // 当前小车的径向方向
+    const dirCarNorm = new THREE.Vector3(
+      car2D.x - towerPostion.x,
+      car2D.y - towerPostion.y,
+      0,
+    ).normalize();
+
+    // 分两种策略生成运动规划路径
+    if (rTarget > rCar) {
+      // 策略一：目标点半径更大 -> 先转臂（圆弧，半径保持 rCar），再小车走直线到目标半径
+      const arcRadius = rCar;
+      const midOnArc = new THREE.Vector3(
+        towerPostion.x + Math.cos(angleTarget) * arcRadius,
+        towerPostion.y + Math.sin(angleTarget) * arcRadius,
+        0,
+      );
+
+      // 相对半径差：当差值足够小的时候，可以认为不需要最后那一小段直线
+      const radialDiff = rTarget - rCar;
+      const radialRatio = radialDiff / Math.max(rTarget, 1e-6);
+
+      // 先在半径 rCar 上，从当前角度转到目标角度
+      pushArcPoints(towerPostion, arcRadius, angleCar, angleCar + deltaAngle, rTarget * 20);
+
+      // 半径差占比较大时，再补一小段直线到真实目标点
+      if (radialRatio >= 0.05) {
+        pushLinePoints(midOnArc, target2D, 24, true);
+      }
+    } else {
+      // 策略二：目标点半径更小 -> 先小车沿径向到同半径位置，再转臂（圆弧，半径保持 rTarget）
+      const midOnLine = new THREE.Vector3(
+        towerPostion.x + dirCarNorm.x * rTarget,
+        towerPostion.y + dirCarNorm.y * rTarget,
+        0,
+      );
+
+      // 先从当前小车位置径向运动到与目标同半径的位置
+      pushLinePoints(car2D, midOnLine, 24);
+
+
+      console.error(`rTarget: ${rTarget}`)
+      // 然后在半径 rTarget 上，从当前角度转到目标角度
+      const arcRadius = rTarget;
+      pushArcPoints(towerPostion, arcRadius, angleCar, angleCar + deltaAngle, rTarget * 20);
+    }
+
+    // 估算路径总长度
+    let totalDistance = 0;
+    for (let i = 1; i < points.length; i++) {
+      totalDistance += points[i - 1].distanceTo(points[i]);
+    }
+
+    // 记录完整路径点数量，用于后续线性填充动画
+    this.arcTotalPoints = points.length;
+    // 启动一次弧线动画，这里选择循环播放；如不需要循环可传 false
+    this.startArcAnimation(true);
+
+    // 创建路径几何：先写入所有点，再通过 drawRange 控制显示进度
+    const arcGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    // 一开始只画前两个点
+    arcGeometry.setDrawRange(0, Math.min(2, points.length));
+
+  // 2. 点精灵着色器（修正线宽计算）
+  const shaderMaterial = new THREE.ShaderMaterial({
+    uniforms: {
+        u_pointSize: { value: 10.0 }, // 点的大小（对应线宽）
+        u_color: { value: new THREE.Color(0xff0000) }
+    },
+    vertexShader: `
+        uniform float u_pointSize;
+        void main() {
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = u_pointSize; // 控制每个点的大小（像素）
+        }
+    `,
+    fragmentShader: `
+        uniform vec3 u_color;
+        void main() {
+            // 只渲染点的圆形区域（避免方形色块）
+            float dist = distance(gl_PointCoord, vec2(0.5));
+            if (dist < 0.5) { // 0.5是点的中心，只保留圆形区域
+                gl_FragColor = vec4(u_color, 1.0);
+            } else {
+                discard;
+            }
+        }
+    `,
+    transparent: true
+  });
+
+
+    const arcLine = new THREE.Points(arcGeometry, shaderMaterial);
+    arcLine.name = 'crane-arc-line';
+
+    // 创建箭头，箭头指向路径末端
+    const lastPoint = points[points.length - 1];
+    const prevPoint = points[points.length - 2] || points[points.length - 1];
+    const tangent = lastPoint.clone().sub(prevPoint).normalize();
+    const arrowLength = Math.max(0.5, totalDistance * 0.08);
+    const arrowOrigin = lastPoint.clone().addScaledVector(tangent, -arrowLength);
+    const arrow = new THREE.ArrowHelper(tangent, arrowOrigin, arrowLength, 0xffa500);
+    arrow.name = 'crane-arc-arrow';
+
+    // 目标点标记，方便观察点击位置：优先使用 pin 模型，未加载时退回红色小球
+    let marker: THREE.Object3D;
+    if (this.locationPinTemplate) {
+      marker = this.locationPinTemplate.clone(true);
+    } else {
+      const markerGeometry = new THREE.SphereGeometry(0.12, 12, 12);
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+      marker = new THREE.Mesh(markerGeometry, markerMaterial);
+    }
+    marker.name = 'crane-arc-target';
+    end.setZ(0);
+    marker.position.copy(end);
+
+    // 清理旧的可视化
+    this.clearArcVisualization();
+
+    // 保存并添加到场景
+    this.arcLine = arcLine;
+    this.arcTargetMarker = marker;
+
+    this.scene.add(arcLine);
+    // this.scene.add(arrow);
+    this.scene.add(marker);
+
+    console.log(`规划路径总长度约为 ${totalDistance.toFixed(2)}，起点:`, start, '终点:', end);
+  }
+
+  /**
+   * 清除弧线、箭头和目标点标记
+   */
+  private clearArcVisualization(): void {
+    if (this.arcLine) {
+      this.scene.remove(this.arcLine);
+      this.arcLine.geometry.dispose();
+      (this.arcLine.material as THREE.Material).dispose();
+      this.arcLine = null;
+    }
+
+
+    if (this.arcTargetMarker) {
+      this.scene.remove(this.arcTargetMarker);
+      // 尽量释放 pin 模型中的 Mesh 资源
+      this.arcTargetMarker.traverse((obj) => {
+        const mesh = obj as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry.dispose();
+          if (Array.isArray(mesh.material)) {
+            mesh.material.forEach((m) => m.dispose());
+          } else {
+            (mesh.material as THREE.Material).dispose();
+          }
+        }
+      });
+      this.arcTargetMarker = null;
+    }
   }
 
   /**
@@ -658,6 +997,30 @@ export class PointCloudViewer {
    */
   private animate = (): void => {
     requestAnimationFrame(this.animate);
+
+    // 如果有规划路径，则做一个 0 -> 100% 的线性填充动画
+    if (this.arcLine && this.arcTotalPoints > 1 && this.arcAnimationStartTime !== null) {
+      const now = performance.now();
+      const elapsed = now - this.arcAnimationStartTime;
+      const t = Math.min(1, elapsed / this.arcAnimationDuration); // 0~1
+
+      const totalPoints = this.arcTotalPoints + 50;
+      const visibleCount = Math.max(2, Math.floor(totalPoints * t));
+
+      // 通过 drawRange 控制当前绘制的段数（几何中已经包含全部点）
+      (this.arcLine.geometry as THREE.BufferGeometry).setDrawRange(0, visibleCount);
+
+      if (t >= 1) {
+        if (this.arcLoopEnabled) {
+          // 循环模式：从头再来一遍
+          this.arcAnimationStartTime = performance.now() + 200;
+        } else {
+          // 动画结束，清理计时器，保留完整路径
+          this.arcAnimationStartTime = null;
+        }
+      }
+    }
+
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
@@ -700,6 +1063,8 @@ export class PointCloudViewer {
       this.renderer.domElement.parentElement.removeChild(this.renderer.domElement);
     }
 
+    this.clearArcVisualization();
+
     // 清理点云
     if (this.pointCloud) {
       this.scene.remove(this.pointCloud);
@@ -715,6 +1080,13 @@ export class PointCloudViewer {
 
     // 清理控制器
     this.controls.dispose();
+
+    // 清理触控事件
+    if (this.touchPreventHandler) {
+      this.renderer.domElement.removeEventListener('touchstart', this.touchPreventHandler);
+      this.renderer.domElement.removeEventListener('touchmove', this.touchPreventHandler);
+      this.touchPreventHandler = null;
+    }
 
     // 清理渲染器
     this.renderer.dispose();
