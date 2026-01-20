@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useLayoutEffect } from "react";
 import { PCDParser } from "../utils/pcd-parser";
 import "../styles/pointCloud-helper-panel.css";
 import CraneControlPanel from "./crane-control-panel";
@@ -34,7 +34,7 @@ export default function PointCloudHelperPanel() {
   const [selectedDensity, setSelectedDensity] = useState(getInitialDensity);
 
   // 初始化时设置选择框的值
-  useEffect(() => {
+  useLayoutEffect(() => {
     const densitySelect = document.getElementById(
       "point-density"
     ) as HTMLSelectElement;

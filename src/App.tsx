@@ -6,7 +6,7 @@ import LeftPanelArea from "./components/left-panel-area";
 import AlertModal from "./components/alert-model";
 import CraneInfoTooltip from "./components/crane-info-tooltip";
 import { WebSocketAPIComponent } from "./components/webSocket-api-component";
-import Header from "./components/header";
+// import Header from "./components/header";
 // import InfoPanel from "./components/info-panel";
 /**
  * 主应用程序组件
@@ -80,7 +80,6 @@ function App() {
 
   return (
     <>
-      <Header />
       <WebSocketAPIComponent />
       <Three3DView />
       <LeftPanelArea />

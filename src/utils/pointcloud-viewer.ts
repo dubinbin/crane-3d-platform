@@ -76,6 +76,32 @@ export class PointCloudViewer {
     this.fbxLoader = new FBXLoader();
     this.pcdLoader = new PCDLoader();
 
+    // 加载背景图片
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load(
+      new URL('../assets/bg.png', import.meta.url).href,
+      (texture) => {
+        // 设置纹理属性，确保颜色正确显示
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        // 确保纹理使用正确的颜色空间（SRGB 保持原始颜色）
+        texture.colorSpace = THREE.SRGBColorSpace;
+        // 使用 EquirectangularReflectionMapping 让纹理填充整个背景
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        
+        // 设置场景背景为纹理
+        this.scene.background = texture;
+      },
+      undefined,
+      (error) => {
+        console.error('加载背景图片失败:', error);
+        // 如果加载失败，使用默认背景色
+        this.scene.background = new THREE.Color(this.options.backgroundColor);
+      }
+    );
+
     // 创建渲染器
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -315,23 +341,23 @@ export class PointCloudViewer {
    * @param fileName - 文件名
    */
   async fetchFileAndHandle(url: string, fileName: string): Promise<void> {
-    this.showLoading(`正在从服务器加载 ${fileName}...`);
+    this.showLoading(`Loading ${fileName} from server...`);
     try {
       const fileObj = await FileUtils.fetchFileFromServer(url, fileName);
       
       if (fileObj) {
         try {
-          this.showLoading(`正在解析和渲染 ${fileName}...`);
+          this.showLoading(`Loading ${fileName}...`);
           window.currentFileName = fileObj.name;
           const pointData = await this.loadPCD(fileObj);
           this.updateFileInfo(pointData, fileObj.name);
         } catch (error) {
-          alert('加载PCD文件失败: ' + (error as Error).message);
+          alert('Load PCD file failed: ' + (error as Error).message);
           console.error(error);
         }
       }
     } catch (error) {
-      alert(`从服务器获取文件失败: ${(error as Error).message}`);
+      alert(`Failed to get file from server: ${(error as Error).message}`);
     } finally {
       this.hideLoading();
     }
