@@ -2,10 +2,12 @@ import { useEffect } from "react";
 import "./App.css";
 import Three3DView from "./components/three-3d-view";
 // import InfoPanel from "./components/info-panel";
-import LeftPanelArea from "./components/left-panel-area";
+// import LeftPanelArea from "./components/left-panel-area";
 import AlertModal from "./components/alert-model";
 import CraneInfoTooltip from "./components/crane-info-tooltip";
 import { WebSocketAPIComponent } from "./components/webSocket-api-component";
+// import Header from "./components/header";
+// import InfoPanel from "./components/info-panel";
 // import Header from "./components/header";
 // import InfoPanel from "./components/info-panel";
 /**
@@ -83,7 +85,7 @@ function App() {
       {/* <Header /> */}
       <WebSocketAPIComponent />
       <Three3DView />
-      <LeftPanelArea />
+      {/* <LeftPanelArea /> */}
       {/* <InfoPanel /> */}
       <AlertModal />
       <CraneInfoTooltip />

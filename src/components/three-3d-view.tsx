@@ -1,8 +1,5 @@
 import { useEffect, useRef } from "react";
 import { PointCloudViewer } from "../utils/pointcloud-viewer";
-import { EventBus, EventName } from "../utils/event";
-import { AlertModalManager } from "./alert-model";
-import AddCraneDialog from "./add-crane-dialog";
 
 export default function Three3DView() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -49,14 +46,14 @@ export default function Three3DView() {
       left: 0;
       width: ${width};
       height: ${height};
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.44);
       justify-content: center;
       align-items: center;
       z-index: 9999;
       color: white;
       font-size: 18px;
     `;
-    loadingOverlay.innerHTML = "<p>正在加载...</p>";
+    loadingOverlay.innerHTML = "<p>Loading...</p>";
     currentContainer.appendChild(loadingOverlay);
 
     // 初始化点云查看器，传入宽度和高度（如果指定了）
@@ -80,23 +77,6 @@ export default function Three3DView() {
         currentContainer.innerHTML = "";
       }
       delete window.viewer;
-    };
-  }, []);
-
-  // event handler
-  useEffect(() => {
-    EventBus.on(EventName.ADD_CRANE, () => {
-      AlertModalManager.current?.show({
-        title: "创建塔吊",
-        message: "",
-        type: "info",
-        duration: 0,
-        component: <AddCraneDialog />,
-      });
-    });
-
-    return () => {
-      EventBus.off(EventName.ADD_CRANE, () => {});
     };
   }, []);
 

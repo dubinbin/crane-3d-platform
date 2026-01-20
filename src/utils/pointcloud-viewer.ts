@@ -67,7 +67,7 @@ export class PointCloudViewer {
       width: options.width || (urlWidth ? parseInt(urlWidth, 10) : undefined) || this.container.offsetWidth || 800,
       height: options.height || (urlHeight ? parseInt(urlHeight, 10) : undefined) || this.container.offsetHeight || 600,
       pointSize: options.pointSize || 0.01,
-      backgroundColor: options.backgroundColor || 0x00001e,
+      backgroundColor: options.backgroundColor || 0x0000214f,
     };
 
     // 创建场景
@@ -88,6 +88,32 @@ export class PointCloudViewer {
     this.fbxLoader = new FBXLoader();
     this.pcdLoader = new PCDLoader();
     this.gltfLoader = new GLTFLoader();
+
+    // 加载背景图片
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load(
+      new URL('../assets/bg.png', import.meta.url).href,
+      (texture) => {
+        // 设置纹理属性，确保颜色正确显示
+        texture.wrapS = THREE.ClampToEdgeWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        // 确保纹理使用正确的颜色空间（SRGB 保持原始颜色）
+        texture.colorSpace = THREE.SRGBColorSpace;
+        // 使用 EquirectangularReflectionMapping 让纹理填充整个背景
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        
+        // 设置场景背景为纹理
+        this.scene.background = texture;
+      },
+      undefined,
+      (error) => {
+        console.error('加载背景图片失败:', error);
+        // 如果加载失败，使用默认背景色
+        this.scene.background = new THREE.Color(this.options.backgroundColor);
+      }
+    );
 
     // 预加载位置标记模型（location pin）
     this.gltfLoader.load(
@@ -111,7 +137,8 @@ export class PointCloudViewer {
     });
     this.renderer.setSize(this.options.width, this.options.height);
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setClearColor(this.options.backgroundColor, 1);
+    // 设置输出编码为 sRGB，确保颜色正确显示
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     // 允许触控事件直接作用于 OrbitControls，避免浏览器默认滚动
     this.renderer.domElement.style.touchAction = 'none';
     // 部分移动端浏览器需要显式阻止默认滚动行为
@@ -951,16 +978,7 @@ export class PointCloudViewer {
       material.needsUpdate = true;
     }
   }
-
-  /**
-   * 设置背景颜色
-   * @param color - 背景颜色
-   */
-  setBackgroundColor(color: number): void {
-    this.options.backgroundColor = color;
-    this.renderer.setClearColor(color, 1);
-  }
-
+  
   /**
    * 重置相机
    */

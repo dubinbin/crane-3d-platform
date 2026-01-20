@@ -3,6 +3,8 @@
     top: calc(25px * var(--scale, 1));
     left: calc(25px * var(--scale, 1));
     height: 100%;
-    display:none;
+    display:flex;
+    flex-direction: column;
+    gap: 10px;
     z-index: 1;
 }

@@ -113,9 +113,9 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
 
       <div className="crane-control">
         <div className="crane-control-label">
-          <i>水平旋转:</i>
+          <i>水平轉動:</i>
           <span className="value-display">
-            {crane.currentRotationAngle?.toFixed(0)}°
+            {crane.currentRotationAngle?.toFixed(0) || "0°"}
           </span>
         </div>
         <Input
@@ -132,7 +132,7 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
       {crane.type === CraneType.BOOM ? (
         <div className="crane-control">
           <div className="crane-control-label">
-            <i>臂膀俯仰:</i>
+            <i>大臂俯仰:</i>
             <span className="value-display">
               {crane.currentArmPitchAngle?.toFixed(0)}°
             </span>
@@ -150,9 +150,9 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
       ) : (
         <div className="crane-control">
           <div className="crane-control-label">
-            <i>小车距离：</i>
+            <i>小車距離：</i>
             <span className="value-display">
-              {crane.currentCarDistance?.toFixed(0)}m
+              {crane.currentCarDistance?.toFixed(0) || "0m"}
             </span>
           </div>
           <Input
@@ -171,9 +171,9 @@ export default function CraneListItem({ craneId }: CraneListItemProps) {
 
       <div className="crane-control">
         <div className="crane-control-label">
-          <i>吊绳长度:</i>
+          <i>吊繩長度:</i>
           <span className="value-display">
-            {crane.currentRopeLength?.toFixed(2)}
+            {crane.currentRopeLength?.toFixed(2) || "10m"}
           </span>
         </div>
         <Input

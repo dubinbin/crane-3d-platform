@@ -25,33 +25,33 @@ export default function CurrentCraneRunningDataPanel() {
             <p className="current-time">{currentTime}</p>
             <div className="inner">
               <div className="item">
-                <h4>{currentCrane?.workTime}</h4>
+                <h4>{currentCrane?.workTime || "20分鐘"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#006cff" }}
                   ></i>
-                  运行时长
+                  運行時長
                 </span>
               </div>
               <div className="item">
-                <h4>{currentCrane?.workerName}</h4>
+                <h4>{currentCrane?.workerName || "鐘師傅"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#6acca3" }}
                   ></i>
-                  操作人
+                  作業人員
                 </span>
               </div>
               <div className="item">
-                <h4>{currentCrane?.name}</h4>
+                <h4>{currentCrane?.name || "TC1"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#6acca3" }}
                   ></i>
-                  塔吊编号
+                  天秤编号
                 </span>
               </div>
             </div>

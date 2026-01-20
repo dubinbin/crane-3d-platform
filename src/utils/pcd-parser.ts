@@ -1,6 +1,18 @@
 /**
  * PCD文件解析器模块
  * 负责解析PCD文件格式，支持ASCII和二进制格式
+ * 
+ * 内存优化说明：
+ * - 预分配数组大小，减少动态扩容带来的内存重新分配
+ * - 使用索引直接赋值而非push，避免数组增长时的多次内存复制
+ * - 解析完成后立即截断数组到实际大小，释放多余内存
+ * - 创建Float32Array后立即清理临时数组引用，帮助GC回收
+ * 
+ * 注意：内存峰值高的原因：
+ * 1. 解析过程中原始数据、临时数组、最终数组同时存在
+ * 2. JavaScript GC延迟，临时对象不会立即释放
+ * 3. Three.js的BufferGeometry也会占用额外内存
+ * 4. 如果保存了window.currentPCDData，原始数据会一直占用内存
  */
 
 export class PCDParser {
@@ -98,28 +110,54 @@ export class PCDParser {
         )}, 数据类型: ${dataType}`
       );
   
+      // 预分配数组大小以减少内存重新分配
+      // 根据采样设置估算实际需要的点数
+      const densitySelect = document.getElementById("point-density");
+      const maxPointsSetting = parseInt(
+        densitySelect ? (densitySelect as HTMLSelectElement).value : "50000"
+      );
+      const estimatedPoints = maxPointsSetting === 0
+        ? pointsCount
+        : Math.min(pointsCount, maxPointsSetting);
+      
+      // 预分配数组，减少内存重新分配次数
       const positions: number[] = [];
       const colors: number[] = [];
-  
+      positions.length = estimatedPoints * 3;
+      colors.length = estimatedPoints * 3;
+      let actualIndex = 0;
+
       if (dataType === "ascii") {
-        this.parseASCIIData(lines, headerEnd, positions, colors, pointsCount);
+        actualIndex = this.parseASCIIData(lines, headerEnd, positions, colors, pointsCount, actualIndex);
       } else if (dataType === "binary" && binaryData) {
-        this.parseBinaryData(binaryData, fields, sizes, types, positions, colors, pointsCount);
+        actualIndex = this.parseBinaryData(binaryData, fields, sizes, types, positions, colors, pointsCount, actualIndex);
       }
-  
-      if (positions.length === 0) {
+
+      if (actualIndex === 0) {
         throw new Error("无法解析PCD文件或文件中没有有效的点数据");
       }
-  
-      // 计算边界框和尺寸
+
+      // 截断数组到实际大小，释放多余内存
+      positions.length = actualIndex * 3;
+      colors.length = actualIndex * 3;
+
+      // 计算边界框和尺寸（使用实际数据）
       const boundingBox = this.calculateBoundingBox(positions);
       
       console.log("点云边界信息:", boundingBox);
-  
+
+      // 直接创建Float32Array，避免中间数组的额外占用
+      const positionsArray = new Float32Array(positions);
+      const colorsArray = new Float32Array(colors);
+      
+      // 清理临时数组引用，帮助GC
+      positions.length = 0;
+      colors.length = 0;
+
       return {
-        positions: new Float32Array(positions),
-        colors: new Float32Array(colors),
-        count: positions.length / 3,
+        positions: positionsArray,
+        colors: colorsArray,
+        count: actualIndex,
         boundingBox: boundingBox, // 添加边界框信息
       };
     }
@@ -131,37 +169,44 @@ export class PCDParser {
      * @param {Array<number>} positions - 位置数组
      * @param {Array<number>} colors - 颜色数组
      * @param {number} pointsCount - 点数量
+     * @param {number} startIndex - 起始索引
+     * @returns {number} 实际解析的点数
      */
-    static parseASCIIData(lines: string[], headerEnd: number, positions: number[], colors: number[], pointsCount: number) {
+    static parseASCIIData(lines: string[], headerEnd: number, positions: number[], colors: number[], pointsCount: number, startIndex: number = 0): number {
+      let index = startIndex;
       for (let i = headerEnd; i < lines.length; i++) {
         const line = lines[i].trim();
         if (line === "") continue;
-  
+
         const values = line.split(/\s+/).map((v) => parseFloat(v));
         if (values.length >= 3) {
-          positions.push(values[0], values[1], values[2]);
-  
+          const posIdx = index * 3;
+          positions[posIdx] = values[0];
+          positions[posIdx + 1] = values[1];
+          positions[posIdx + 2] = values[2];
+
+          const colorIdx = index * 3;
           if (values.length >= 6) {
-            colors.push(
-              values[3] / 255,
-              values[4] / 255,
-              values[5] / 255
-            );
+            colors[colorIdx] = values[3] / 255;
+            colors[colorIdx + 1] = values[4] / 255;
+            colors[colorIdx + 2] = values[5] / 255;
           } else if (values.length >= 4) {
             // RGB打包格式
             const rgb = parseInt(values[3].toString());
-            colors.push(
-              ((rgb >> 16) & 0xff) / 255.0,
-              ((rgb >> 8) & 0xff) / 255.0,
-              (rgb & 0xff) / 255.0
-            );
+            colors[colorIdx] = ((rgb >> 16) & 0xff) / 255.0;
+            colors[colorIdx + 1] = ((rgb >> 8) & 0xff) / 255.0;
+            colors[colorIdx + 2] = (rgb & 0xff) / 255.0;
           } else {
             // 默认渐变色
-            const t = positions.length / 3 / pointsCount;
-            colors.push(0.2 + t * 0.3, 0.6 + t * 0.2, 1.0 - t * 0.3);
+            const t = index / pointsCount;
+            colors[colorIdx] = 0.2 + t * 0.3;
+            colors[colorIdx + 1] = 0.6 + t * 0.2;
+            colors[colorIdx + 2] = 1.0 - t * 0.3;
           }
+          index++;
         }
       }
+      return index;
     }
   
     /**
@@ -173,24 +218,26 @@ export class PCDParser {
      * @param {Array<number>} positions - 位置数组
      * @param {Array<number>} colors - 颜色数组
      * @param {number} pointsCount - 点数量
+     * @param {number} startIndex - 起始索引
+     * @returns {number} 实际解析的点数
      */
-    static parseBinaryData(binaryData: ArrayBuffer, fields: string[], sizes: number[], types: string[], positions: number[], colors: number[], pointsCount: number) {
+    static parseBinaryData(binaryData: ArrayBuffer, fields: string[], sizes: number[], types: string[], positions: number[], colors: number[], pointsCount: number, startIndex: number = 0): number {
       console.log("开始解析二进制数据");
       console.log("字段:", fields);
       console.log("大小:", sizes);
       console.log("类型:", types);
-  
+
       const view = new DataView(binaryData);
       let offset = 0;
-  
+
       // 计算每个点的字节大小
       let pointSize = 0;
       for (let i = 0; i < fields.length; i++) {
         pointSize += sizes[i] || 4;
       }
-  
+
       console.log(`每个点占用 ${pointSize} 字节`);
-  
+
       // 获取用户设置的点云密度
       const densitySelect = document.getElementById("point-density");
       const maxPointsSetting = parseInt(
@@ -201,13 +248,13 @@ export class PCDParser {
           ? pointsCount
           : Math.min(pointsCount, maxPointsSetting);
       const step = Math.max(1, Math.floor(pointsCount / maxPoints)); // 采样步长
-  
+
       console.log(
         `将解析 ${maxPoints} 个点 (原始: ${pointsCount}个点, 采样步长: ${step})`
       );
-  
-      let parsedPoints = 0;
-  
+
+      let parsedPoints = startIndex;
+
       for (
         let i = 0;
         i < pointsCount &&
@@ -218,14 +265,14 @@ export class PCDParser {
         let fieldOffset = 0;
         let x = 0, y = 0, z = 0;
         let r = 0.2, g = 0.6, b = 1.0;
-  
+
         try {
           // 读取各个字段
           for (let j = 0; j < fields.length; j++) {
             const field = fields[j];
             const size = sizes[j] || 4;
             const type = types[j] || "F";
-  
+
             let value = 0;
             let floatValue = 0;
             if (type === "F" && size === 4) {
@@ -278,10 +325,10 @@ export class PCDParser {
                 b = value / 255.0;
               }
             }
-  
+
             fieldOffset += size;
           }
-  
+
           // 验证坐标有效性
           if (
             !isNaN(x) &&
@@ -291,18 +338,28 @@ export class PCDParser {
             Math.abs(y) < 1000 &&
             Math.abs(z) < 1000
           ) {
-            positions.push(x, y, z);
-            colors.push(r, g, b);
+            // 直接写入预分配的数组位置，避免push操作
+            const posIdx = parsedPoints * 3;
+            positions[posIdx] = x;
+            positions[posIdx + 1] = y;
+            positions[posIdx + 2] = z;
+            
+            const colorIdx = parsedPoints * 3;
+            colors[colorIdx] = r;
+            colors[colorIdx + 1] = g;
+            colors[colorIdx + 2] = b;
+            
             parsedPoints++;
           }
         } catch (error) {
           console.warn(`跳过点 ${i}:`, (error as Error).message);
         }
-  
+
         offset += pointSize * step;
       }
-  
-      console.log(`二进制解析完成: ${parsedPoints}个点`);
+
+      console.log(`二进制解析完成: ${parsedPoints - startIndex}个点`);
+      return parsedPoints;
     }
   
     /**

@@ -36,8 +36,8 @@ export default function CurrentCraneInfo() {
     <div className="current-crane-main-wrapper">
       <div className="current-crane-info">
         <div className="current-crane-info-title">
-          {currentCrane?.onlineStatus === OnlineStatus.ONLINE ? (
-            <Tooltip title="在线">
+          {currentCrane?.onlineStatus !== OnlineStatus.ONLINE ? (
+            <Tooltip title="上線">
               <span
                 style={{
                   color: "#35ED88FF",
@@ -61,7 +61,7 @@ export default function CurrentCraneInfo() {
               ></span>
             </Tooltip>
           )}
-          {currentCrane?.name}
+          {currentCrane?.name || "TC1"}
         </div>
         <div className="current-crane-info-wrapper">
           <div className="crane-info-container">
@@ -75,7 +75,7 @@ export default function CurrentCraneInfo() {
               alt="CraneInfo"
             />
             <div className="info-box">
-              <p>吊物高度：{currentCrane?.currentHookHeight}米</p>
+              <p>吊鉤高度：{currentCrane?.currentHookHeight || "10m"}</p>
               <p
                 className={
                   currentCrane?.type === CraneType.BOOM
@@ -84,15 +84,17 @@ export default function CurrentCraneInfo() {
                 }
               >
                 {currentCrane?.type === CraneType.BOOM
-                  ? "吊臂长度："
-                  : "小车距离："}
+                  ? "吊臂長度："
+                  : "小車距離："}
                 {currentCrane?.type === CraneType.BOOM
-                  ? currentCrane?.currentRopeLength
-                  : currentCrane?.currentCarDistance}
-                米
+                  ? currentCrane?.currentRopeLength || "10m"
+                  : currentCrane?.currentCarDistance || "0m"}
               </p>
-              <p>吊钩高度：{currentCrane?.currentHeightDistanceFromGround}米</p>
-              <p>回转角度: {currentCrane?.currentRotationAngleText}度</p>
+              <p>
+                吊鉤高度：
+                {currentCrane?.currentHeightDistanceFromGround || "10m"}
+              </p>
+              <p>回轉角度: {currentCrane?.currentRotationAngleText || "0°"}</p>
             </div>
           </div>
 
@@ -100,75 +102,75 @@ export default function CurrentCraneInfo() {
             <div className="item">
               <p>
                 {currentCrane?.type === CraneType.BOOM
-                  ? "臂膀俯仰"
-                  : "小车距离"}
+                  ? "大臂俯仰"
+                  : "小車距離"}
               </p>
-              <i>
+              <i className="center-text">
                 {currentCrane?.type === CraneType.BOOM
-                  ? currentCrane?.currentArmPitchAngleText
-                  : currentCrane?.currentCarDistance}
+                  ? currentCrane?.currentArmPitchAngleText || "0°"
+                  : currentCrane?.currentCarDistance || "0m"}
               </i>
             </div>
             <div className="item">
-              <p>吊钩高度</p>
-              <i>{currentCrane?.currentRopeLength}米</i>
+              <p>吊鉤高度</p>
+              <i>{currentCrane?.currentRopeLength || "10米"}</i>
             </div>
             <div className="item">
-              <p>回转角度</p>
-              <i>{currentCrane?.currentRotationAngleText}度</i>
+              <p>回轉角度</p>
+              <i>{currentCrane?.currentRotationAngleText || "0°"}</i>
             </div>
           </div>
 
           <div className="overview panel">
             <div className="inner">
               <div className="item">
-                <h4>{currentCrane?.loadMatrix}%</h4>
+                <h4>{currentCrane?.loadMatrix || "0%"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#006cff" }}
                   ></i>
-                  载矩
+                  載矩
                 </span>
               </div>
               <div className="item">
-                <h4>{currentCrane?.weight}T</h4>
+                <h4>{currentCrane?.weight || "0"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#6acca3" }}
                   ></i>
-                  重量
+                  重量(T)
                 </span>
               </div>
               <div className="item">
-                <h4>{currentCrane?.windSpeed}m/s</h4>
+                <h4>{currentCrane?.windSpeed || "10m/s"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#CC916AFF" }}
                   ></i>
-                  风速
+                  風速(m/s)
                 </span>
               </div>
               <div className="item">
-                <h4>{currentCrane?.swingWidth}m</h4>
+                <h4>{currentCrane?.swingWidth || "10m"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#35ED88FF" }}
                   ></i>
-                  吊钩摆幅
+                  吊鉤擺幅(m)
                 </span>
               </div>
               <div className="item">
-                <h4>{currentCrane?.armInclinationAngle}°</h4>
+                <h4>{currentCrane?.armInclinationAngle || "0°"}</h4>
                 <span>
                   <i
                     className="icon-dot"
                     style={{ backgroundColor: "#357BE6FF" }}
                   ></i>
-                  大臂倾角
+                  大臂傾角(°)
                 </span>
               </div>
             </div>
@@ -184,7 +186,7 @@ export default function CurrentCraneInfo() {
                 variant="filled"
                 icon={<LinkOutlined />}
               >
-                连接
+                連接
               </Button>
             ) : (
               <Button
@@ -196,7 +198,7 @@ export default function CurrentCraneInfo() {
                 className="item"
                 icon={<DisconnectOutlined />}
               >
-                断开
+                斷開
               </Button>
             )}
           </div>

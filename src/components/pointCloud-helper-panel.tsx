@@ -39,9 +39,9 @@ export default function PointCloudHelperPanel() {
       "point-density"
     ) as HTMLSelectElement;
 
-    if (controlPanelRef.current) {
-      controlPanelRef.current.style.visibility = "hidden";
-    }
+    // if (controlPanelRef.current) {
+    //   controlPanelRef.current.style.visibility = "hidden";
+    // }
     if (densitySelect) {
       densitySelect.value = selectedDensity;
     }
