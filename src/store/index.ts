@@ -13,6 +13,7 @@ interface State {
   updateCraneArmPitchText: (id: string, value: string) => void;
   updateRopeLength: (id: string, value: number) => void;
   updateCraneCarDistance: (id: string, value: number) => void;
+  updateCraneCarDistanceText: (id: string, value: string) => void;
   clearAllCranes: () => void;
   currentOperationCraneId: string | null;
   setCurrentOperationCraneId: (id: string | null) => void;
@@ -54,6 +55,11 @@ export const useStore = create<State>((set) => ({
     )
   })),
   
+  updateCraneCarDistanceText: (id, value) => set((state) => ({
+    cranes: state.cranes.map(c => 
+      c.id === id ? { ...c, currentCarDistanceText: value } : c
+    )
+  })),
   updateRopeLength: (id, value) => set((state) => ({
     cranes: state.cranes.map(c => 
       c.id === id ? { ...c, currentRopeLength: value } : c

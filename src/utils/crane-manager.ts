@@ -340,7 +340,6 @@ export class CraneManager {
       let hooksHeader: THREE.Object3D | null = null;
 
       newCrane.traverse((child) => {
-        console.log('child.name', child.name);
         if (child.name === 'main-arm') {
           topController = child;
         }
@@ -380,7 +379,7 @@ export class CraneManager {
       let neckController: THREE.Object3D | null = null;
       let hooksHeader: THREE.Object3D | null = null;
       newCrane.traverse((child) => {
-        console.log('child.name', child.name);
+
         if (child.name === 'hooks-angle') {
           topController = child;
         }
@@ -537,6 +536,7 @@ export class CraneManager {
     if (!crane) return;
     
     const userData = crane.userData as CraneUserData;
+    console.log('userData', userData);
     if (!userData.neckController) {
       console.warn(`塔吊 ${craneId} 没有找到臂膀控制器 (hooks-main)`);
       return;

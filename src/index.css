@@ -91,7 +91,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: calc(15px * var(--scale, 1));
-  
+
 }
 
 .control-group {
@@ -204,7 +204,8 @@ body {
   align-items: center;
   z-index: 2000;
   color: white;
-  display: none; /* Hidden by default */
+  display: none;
+  /* Hidden by default */
 }
 
 .spinner {
@@ -218,17 +219,23 @@ body {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
-[class^="icon-"], [class*=" icon-"] {
+[class^="icon-"],
+[class*=" icon-"] {
   font-family: 'icomoon' !important;
-    speak: none;
-    font-style: normal;
-    font-weight: normal;
-    font-variant: normal;
-    text-transform: none;
-    line-height: 1;
-    -webkit-font-smoothing: antialiased;
+  speak: none;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
 }

@@ -12,12 +12,24 @@ const app = express();
 // 获取当前文件的目录路径 (ES6 模块中的 __dirname 替代方案)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
 // 创建 HTTP 服务器
 const server = http.createServer(app);
 
 const host = "localhost";
 const serverPort = 9999;
+const WS_PUSH_INTERVAL = 33; // 30fps（你可以改成 16 = 60fps）
+
+
+// =======================
+// Ring Buffer（只保留最新一帧）
+// =======================
+let latestTcpBuffer = null;
+let latestTcpTimestamp = 0;
+
+// 统计用
+let tcpPacketCount = 0;
+let wsSendCount = 0;
+let wsSendInterval = null;
 
 let jsonData = {
   tcp_server_host: "localhost",
@@ -68,6 +80,21 @@ app.use(cors({
   credentials: true
 }));
 
+// 优化静态文件服务性能
+// 添加 ETag 和 Last-Modified 支持，减少不必要的文件读取
+const staticOptions = {
+  etag: true, // 启用 ETag 缓存
+  lastModified: true, // 启用 Last-Modified
+  maxAge: 3600000, // 1小时缓存（对于静态资源）
+  immutable: true, // 标记为不可变资源（适合带hash的文件名）
+  setHeaders: (res, path) => {
+    // 对于大文件，设置合适的缓存策略
+    if (path.endsWith('.pcd') || path.endsWith('.fbx') || path.endsWith('.glb')) {
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // 24小时缓存
+    }
+  }
+};
+
 // 【重要】动态资源路由必须在 dist 静态文件之前配置
 // 这样可以确保动态资源不会被 dist 目录中的旧文件覆盖
 
@@ -83,16 +110,25 @@ app.get('/api/config', (req, res) => {
 });
 
 // 托管 JSON 文件目录（动态配置文件，优先级最高）
-app.use('/json', express.static(path.join(__dirname, '/public/json')));
+// JSON 文件较小，不需要特殊优化
+app.use('/json', express.static(path.join(__dirname, '/public/json'), {
+  etag: false, // JSON 配置文件不使用缓存
+  lastModified: false,
+  maxAge: 0
+}));
 
-// 托管 PCD 文件目录（点云数据，动态更新）
-app.use('/pcd', express.static(path.join(__dirname, '/public/pcd')));
+// 托管 PCD 文件目录（点云数据，可能很大）
+app.use('/pcd', express.static(path.join(__dirname, '/public/pcd'), staticOptions));
 
-// 托管模型文件目录（3D模型，动态更新）
-app.use('/model', express.static(path.join(__dirname, '/public/model')));
+// 托管模型文件目录（3D模型，可能很大）
+app.use('/model', express.static(path.join(__dirname, '/public/model'), staticOptions));
 
 // 托管静态文件 - 服务 dist 文件夹（打包的前端资源）
-app.use(express.static(path.join(__dirname, '/dist')));
+// 使用优化配置，这些文件通常不会变化
+app.use(express.static(path.join(__dirname, '/dist'), {
+  ...staticOptions,
+  maxAge: 86400000, // 24小时缓存（前端资源通常带hash，可以长期缓存）
+}));
 
 // 配置 Socket.IO
 const io = new SocketIOServer(server, {
@@ -102,7 +138,13 @@ const io = new SocketIOServer(server, {
     ],
     methods: ["GET", "POST"],
     credentials: true
-  }
+  },
+  // 确保二进制数据传输正常
+  maxHttpBufferSize: 1e8, // 100MB，支持大文件传输
+  pingTimeout: 60000, // 60秒 ping 超时
+  pingInterval: 25000, // 25秒 ping 间隔
+  // 允许二进制数据
+  allowEIO3: true
 });
 
 // TCP 客户端连接
@@ -110,6 +152,12 @@ let tcpClient = null;
 let tcpConnected = false;
 let reconnectTimer = null;
 let isShuttingDown = false;
+let healthCheckTimer = null; // 健康检查定时器
+let lastDataTime = null; // 最后一次收到数据的时间
+let reconnectCount = 0; // 重连次数
+let isReconnecting = false; // 是否正在重连
+let heartbeatCount = 0; // 心跳计数器
+let heartbeatTimer = null; // 心跳定时器
 
 // 通过 HTTP 接口获取最新配置（避免文件系统缓存）
 async function fetchConfigFromAPI() {
@@ -130,56 +178,299 @@ async function fetchConfigFromAPI() {
   }
 }
 
+// 消息序列化函数（对应Flutter的Message.serialize）
+function serializeMessage(userID, timeStamp, type, valueArray1, valueArray2) {
+  const byteNumber = 40;
+  const buffer = Buffer.alloc(byteNumber);
+  
+  // Offset 0: userID (uint8)
+  buffer.writeUInt8(parseInt(userID), 0);
+  
+  // Offset 1-8: timeStamp (int64, little endian)
+  buffer.writeBigInt64LE(BigInt(timeStamp), 1);
+  
+  // Offset 9: type (uint8)
+  buffer.writeUInt8(type, 9);
+  
+  // Offset 10-15: valueArray1 (3 int16, little endian)
+  for (let i = 0; i < 3; i++) {
+    buffer.writeInt16LE(valueArray1[i], 10 + 2 * i);
+  }
+  
+  // Offset 16-39: valueArray2 (3 float64, little endian)
+  for (let i = 0; i < 3; i++) {
+    buffer.writeDoubleLE(valueArray2[i], 16 + 8 * i);
+  }
+  
+  return buffer;
+}
+
+// 清除健康检查定时器
+function clearHealthCheck() {
+  if (healthCheckTimer) {
+    clearInterval(healthCheckTimer);
+    healthCheckTimer = null;
+  }
+  lastDataTime = null;
+}
+
+// 清除心跳定时器
+function clearHeartbeat() {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+  heartbeatCount = 0;
+}
+
+// 启动健康检查（每30秒检查一次连接状态）
+function startHealthCheck() {
+  clearHealthCheck();
+  
+  // 设置超时时间为120秒（如果120秒内没有收到数据，认为连接可能有问题）
+  // 增加超时时间，避免因为TCP服务器发送间隔较长而误判
+  const HEALTH_CHECK_INTERVAL = 30000; // 30秒检查一次
+  const DATA_TIMEOUT = 120000; // 120秒超时（2分钟）
+  
+  healthCheckTimer = setInterval(() => {
+    if (!tcpConnected || !tcpClient) {
+      return;
+    }
+    
+    const now = Date.now();
+    const timeSinceLastData = lastDataTime ? (now - lastDataTime) : null;
+    const wsClients = io.sockets.sockets.size;
+    
+    // 定期输出连接状态（用于调试）- 每2次检查输出一次（约1分钟）
+    const checkCount = Math.floor((now - (lastDataTime || now)) / HEALTH_CHECK_INTERVAL);
+    if (checkCount % 2 === 0 || timeSinceLastData > 30000) {
+      console.log(`🔍 连接状态检查: TCP=${tcpConnected}, 可读=${tcpClient.readable}, 可写=${tcpClient.writable}, 已销毁=${tcpClient.destroyed}, WebSocket客户端=${wsClients}, 距上次数据=${timeSinceLastData ? Math.round(timeSinceLastData/1000) + 's' : 'N/A'}`);
+    }
+    
+    // 如果设置了最后接收数据时间，检查是否超时
+    if (lastDataTime && (now - lastDataTime) > DATA_TIMEOUT) {
+      console.warn(`⚠️  TCP 连接超时：超过${DATA_TIMEOUT/1000}秒未收到数据，尝试重连...`);
+      console.warn(`   最后接收数据时间: ${new Date(lastDataTime).toLocaleTimeString()}, 当前时间: ${new Date(now).toLocaleTimeString()}`);
+      console.warn(`   Socket 状态: readable=${tcpClient.readable}, writable=${tcpClient.writable}, destroyed=${tcpClient.destroyed}`);
+      
+      // 只有在真正超时且socket状态异常时才重连
+      if (!tcpClient.readable && !tcpClient.writable) {
+        console.warn(`   确认连接已断开，准备重连...`);
+        tcpClient.destroy();
+      } else {
+        console.warn(`   Socket 状态正常，可能是TCP服务器发送间隔较长，继续等待...`);
+      }
+      return;
+    }
+    
+    // 如果超过30秒没有数据，输出警告（但还不重连）
+    if (lastDataTime && (now - lastDataTime) > 30000 && (now - lastDataTime) <= DATA_TIMEOUT) {
+      const bufferSize = tcpClient.readableLength || 0;
+      console.warn(`⚠️  警告：已超过30秒未收到TCP数据 (${Math.round((now - lastDataTime)/1000)}秒)`);
+      console.warn(`   TCP Socket 状态: readable=${tcpClient.readable}, writable=${tcpClient.writable}, destroyed=${tcpClient.destroyed}`);
+      console.warn(`   缓冲区数据: ${bufferSize} bytes`);
+      
+      // 如果有数据在缓冲区但没有触发data事件，尝试手动读取
+      if (bufferSize > 0) {
+        console.warn(`   ⚠️  发现缓冲区有 ${bufferSize} bytes 数据但未触发data事件！`);
+        console.warn(`   尝试手动触发数据读取...`);
+        // 注意：不能直接读取，因为data事件应该自动触发
+        // 这可能是TCP流被暂停了
+      }
+      
+      // 检查TCP流是否被暂停（通过检查是否有readable事件但数据没被读取）
+      if (tcpClient.readable && bufferSize === 0) {
+        console.warn(`   TCP流可读但缓冲区为空，可能是TCP服务器没有发送数据`);
+      }
+    }
+    
+    // 检查 socket 状态
+    if (!tcpClient.readable && !tcpClient.writable) {
+      console.warn('⚠️  TCP socket 既不可读也不可写，连接可能已断开');
+      tcpClient.destroy();
+      return;
+    }
+    
+    if (tcpClient.destroyed) {
+      console.warn('⚠️  TCP socket 已被销毁');
+      return;
+    }
+  }, HEALTH_CHECK_INTERVAL);
+}
+
+
+function startWsSendInterval() {
+  wsSendInterval = setInterval(() => {
+    if (!latestTcpBuffer) return;
+  
+    const clientCount = io.sockets.sockets.size;
+    if (clientCount === 0) return;
+  
+    wsSendCount++;
+  
+    io.volatile.emit('server-msg', latestTcpBuffer);
+  
+    // 调试日志（低频）
+    if (wsSendCount % 60 === 0) {
+      const delay = Date.now() - latestTcpTimestamp;
+      console.log(
+        `📡 WS push: clients=${clientCount}, delay=${delay}ms, sent=${wsSendCount}`
+      );
+    }
+  }, WS_PUSH_INTERVAL);
+}
+
+
 // 连接到 TCP 服务器
 function connectToTcpServer() {
+  // 如果正在重连，避免重复连接
+  if (isReconnecting) {
+    console.warn('⚠️  正在重连中，跳过重复连接请求');
+    return;
+  }
+  
+  isReconnecting = true;
+  reconnectCount++;
+  
+  // 清理旧的连接和定时器
   if (tcpClient) {
+    tcpClient.removeAllListeners(); // 移除所有事件监听器
     tcpClient.destroy();
+    tcpClient = null;
+  }
+  clearHealthCheck();
+  clearHeartbeat();
+  
+  // 清除重连定时器
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
   }
 
   console.log(`正在连接到 TCP 服务器 ${TCP_HOST}:${TCP_PORT}...`);
   
   tcpClient = new net.Socket();
-  // 不设置 encoding，保持二进制数据格式（Buffer）
+  
+  // 启用 TCP keep-alive，防止连接被静默关闭
+  tcpClient.setKeepAlive(true, 10000); // 10秒后开始发送 keep-alive 探测包
+  tcpClient.setNoDelay(true); // 禁用 Nagle 算法，减少延迟
+  
+  const WS_PUSH_INTERVAL = 33; // 30fps（你可以改成 16 = 60fps）
 
+  tcpClient.on('data', (chunk) => {
+    tcpPacketCount++;
+    lastDataTime = Date.now();
+  
+    latestTcpBuffer = chunk;
+    latestTcpTimestamp = lastDataTime;
+  
+    if (tcpPacketCount % 100 === 0) {
+      console.log(
+        `📥 TCP recv: ${chunk.length} bytes, total=${tcpPacketCount}`
+      );
+    }
+  });
+  // 连接成功回调
   tcpClient.connect(TCP_PORT, TCP_HOST, () => {
     tcpConnected = true;
+    isReconnecting = false; // 重置重连状态
+    reconnectCount = 0; // 重置重连计数
+    lastDataTime = Date.now(); // 初始化最后接收数据时间
     console.log(`✅ 已连接到 TCP 服务器 ${TCP_HOST}:${TCP_PORT}`);
+    console.log(`   连接详情: local=${tcpClient.localAddress}:${tcpClient.localPort}, remote=${tcpClient.remoteAddress}:${tcpClient.remotePort}`);
+    console.log(`   Socket 状态: readable=${tcpClient.readable}, writable=${tcpClient.writable}`);
+    console.log(`   缓冲区状态: readableLength=${tcpClient.readableLength || 0} bytes`);
+  });
+
+  function heartbeat() {
+    if (!tcpConnected || !tcpClient) {
+      return;
+    }
     
-    // 通知所有 WebSocket 客户端 TCP 连接状态
-    io.emit('tcp-status', { connected: true });
+    heartbeatCount++;
+    const timeStamp = Date.now();
+    // SendCmdType.heartbeat - 需要根据实际值调整，这里假设为100，您可以根据实际情况修改
+    const HEARTBEAT_TYPE = 100;
+    
+    // 创建心跳消息（对应Flutter的Message构造）
+    const message = serializeMessage(
+      "1",                    // userID
+      timeStamp,              // timeStamp
+      HEARTBEAT_TYPE,         // type (SendCmdType.heartbeat)
+      [heartbeatCount, 0, 0], // valueArray1
+      [0.0, 0.0, 0.0]         // valueArray2
+    );
+    
+    // 发送到TCP服务器
+    tcpClient.write(message);
+    
+    // 调试日志（低频输出）
+    if (heartbeatCount % 10 === 0) {
+      console.log(`💓 心跳发送: count=${heartbeatCount}, timestamp=${timeStamp}`);
+    }
+  }
+
+ 
+  // 连接超时处理
+  tcpClient.on('timeout', () => {
+    console.error('❌ TCP 连接超时（30秒内未建立连接）');
+    isReconnecting = false; // 重置重连状态
+    clearHeartbeat(); // 清除心跳定时器
+    tcpClient.destroy();
   });
 
-  // 接收 TCP 数据，转发给所有 WebSocket 客户端
-  tcpClient.on('data', (data) => {
-    console.log('📥 TCP -> WebSocket: [二进制数据]', data.length, 'bytes');
-    // 直接发送 Buffer，Socket.IO 会自动转换为 ArrayBuffer 发送到浏览器
-    io.emit('server-msg', data);
-  });
-
+  // 监听错误事件
   tcpClient.on('error', (err) => {
     console.error('❌ TCP 连接错误:', err.message);
     tcpConnected = false;
-    io.emit('tcp-status', { connected: false, error: err.message });
+    clearHeartbeat(); // 清除心跳定时器
   });
 
-  tcpClient.on('close', () => {
-    console.log('🔌 TCP 连接已关闭');
+  // 监听关闭事件
+  tcpClient.on('close', (hadError) => {
+    console.warn(`⚠️  TCP 连接已关闭${hadError ? ' (有错误)' : ''}`);
     tcpConnected = false;
-    io.emit('tcp-status', { connected: false });
+    clearHeartbeat(); // 清除心跳定时器
     
-    // 5秒后自动重连（只在非关闭状态下重连）
-    if (!reconnectTimer && !isShuttingDown) {
-      reconnectTimer = setTimeout(async () => {
-        reconnectTimer = null;
-        if (!isShuttingDown) {
-          console.log('🔄 尝试重新连接 TCP 服务器...');
-          // 重连前先获取最新配置
-          const latestConfig = await fetchConfigFromAPI();
-          updateTcpConfig(latestConfig);
-          connectToTcpServer();
-        }
-      }, 5000);
+    // 如果不是正在关闭服务器，尝试重连
+    if (!isShuttingDown && !isReconnecting) {
+      console.log('🔄 准备重连 TCP 服务器...');
+      reconnectTimer = setTimeout(() => {
+        connectToTcpServer();
+      }, 3000); // 3秒后重连
     }
+  });
+
+  // 监听 end 事件（TCP 服务器关闭了写入端）
+  tcpClient.on('end', () => {
+    console.warn('⚠️  TCP 服务器关闭了写入端（发送了 FIN）');
+    console.log('连接状态: readable=', tcpClient?.readable, ', writable=', tcpClient?.writable);
+    clearHeartbeat(); // 清除心跳定时器
+    // 当服务器关闭写入端时，我们也关闭读取端
+    tcpClient.end();
+  });
+
+  tcpClient.on('connect', () => {
+    console.log('TCP connected');
+  
+    // 强制 flowing（关键）
+    tcpClient.resume();
+  
+    startWsSendInterval();
+    
+    // 启动心跳定时器（每5秒发送一次心跳）
+    clearHeartbeat();
+    heartbeatTimer = setInterval(() => {
+      heartbeat();
+    }, 1500);
+    
+    // 立即发送一次心跳
+    heartbeat();
+  });
+
+  // 监听 pause 和 resume 事件（流控制）
+  tcpClient.on('pause', () => {
+    console.warn('⏸️  TCP 流已暂停（可能因为缓冲区满）');
   });
 }
 
@@ -194,10 +485,17 @@ function updateTcpConfig(config) {
 
 // Socket.IO 连接处理
 io.on('connection', (socket) => {
-  console.log('🌐 WebSocket 客户端已连接:', socket.id);
+  const totalClients = io.sockets.sockets.size;
+  console.log(`🌐 WebSocket 客户端已连接: ${socket.id} (总计: ${totalClients})`);
   
   // 发送当前 TCP 连接状态
   socket.emit('tcp-status', { connected: tcpConnected });
+  
+  // 监听客户端断开
+  socket.on('disconnect', (reason) => {
+    const remainingClients = io.sockets.sockets.size;
+    console.log(`🔌 WebSocket 客户端断开: ${socket.id}, 原因: ${reason} (剩余: ${remainingClients})`);
+  });
 
   // 接收 WebSocket 消息，转发到 TCP 服务器
   socket.on('client-msg', (data) => {
@@ -213,10 +511,6 @@ io.on('connection', (socket) => {
       console.warn('⚠️  TCP 未连接，无法发送消息');
       socket.emit('error', { message: 'TCP server not connected' });
     }
-  });
-
-  socket.on('disconnect', () => {
-    console.log('🔌 WebSocket 客户端断开:', socket.id);
   });
 });
 
@@ -265,6 +559,12 @@ function shutdown() {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+  
+  // 清除健康检查定时器
+  clearHealthCheck();
+  
+  // 清除心跳定时器
+  clearHeartbeat();
   
   // 关闭 TCP 连接
   if (tcpClient) {

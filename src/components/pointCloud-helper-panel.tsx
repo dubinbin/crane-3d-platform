@@ -84,6 +84,12 @@ export default function PointCloudHelperPanel() {
     }
   };
 
+  const handleClosePanel = () => {
+    if (controlPanelRef.current) {
+      controlPanelRef.current.style.display = "none";
+    }
+  };
+
   return (
     <div
       id="control-panel"
@@ -110,6 +116,8 @@ export default function PointCloudHelperPanel() {
             🔬 设置面板
           </h3>
         </div>
+
+        <button onClick={handleClosePanel}>关闭</button>
 
         <div className="control-content">
           <div className="crane-control-panel">

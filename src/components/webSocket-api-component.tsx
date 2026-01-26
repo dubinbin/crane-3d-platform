@@ -9,6 +9,7 @@ import {
   calculatePostureAbility,
 } from "../utils/posture-ability";
 import { AlertModalManager } from "./alert-model";
+import { CraneType } from "../types";
 // import { useStore } from "../store";
 
 export const WebSocketAPIComponent = () => {
@@ -21,6 +22,9 @@ export const WebSocketAPIComponent = () => {
   const updateCraneArmPitchText = useStore(
     (state) => state.updateCraneArmPitchText
   );
+  const updateCraneCarDistance = useStore((state) => state.updateCraneCarDistance);
+  
+  const updateCraneCarDistanceText = useStore((state) => state.updateCraneCarDistanceText);
   const cranelist = useStore((state) => state.cranes);
 
   useEffect(() => {
@@ -100,36 +104,25 @@ export const WebSocketAPIComponent = () => {
       console.log("ValueArray1 (Int16):", message.valueArray1);
       console.log("ValueArray2 (Float64):", message.valueArray2);
 
-      // 在这里可以根据消息类型进行不同的处理
-      // 例如：event code here
-      // switch (message.type.toString()) {
-      //   case WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS.toString(): {
-      //     const eventData: number[] = message.valueArray1;
-      //     handleTaskCurrentStatus(eventData);
-      //     break;
-      //   }
-      //   case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE.toString(): {
-      //     const eventData: number[] = message.valueArray2;
-      //     setFirstCraneData(eventData);
-      //     break;
-      //   }
-      //   case WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_ANGLE.toString():
-      //     console.log("Handle message type 1");
-      //     break;
-      //   default:
-      //     console.log("other unknown message type :", message.type);
-      //     break;
-      // }
+
       if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS) {
         const eventData: number[] = message.valueArray1;
         handleTaskCurrentStatus(eventData);
         return;
       }
 
-      if (message.type >= 100 && message.type <= 200) {
-        const eventData: number[] = message.valueArray2;
-        const craneId = message.type;
-        sendToDifferentCrane(eventData, craneId);
+      // if (message.type >= 100 && message.type <= 200) {
+      //   const eventData: number[] = message.valueArray2;
+      //   const craneId = message.type;
+      //   sendToDifferentCrane(eventData, craneId);
+      //   return;
+      // }
+
+
+      if (message.type === 20) {
+        console.error("message.valueArray2", message.valueArray2);
+        // const craneId = message.type;
+        sendToDifferentCrane(message.valueArray2, 101 as unknown as number);
         return;
       }
     };
@@ -165,28 +158,47 @@ export const WebSocketAPIComponent = () => {
   const sendToDifferentCrane = (eventData: number[], craneId: number) => {
     const matchItem = cranelist.find((c) => c.id === craneId.toString());
     console.log("matchItem", matchItem);
+    const craneType = matchItem?.type;
     if (matchItem) {
       const originalRotation = parseFloat(eventData[0].toFixed(2));
       const rotation = calcRotationAngle(originalRotation);
       updateCraneRotationText(matchItem.id, originalRotation.toFixed(2));
+      console.error("rotation", rotation);
       updateCraneRotation(matchItem.id, rotation);
       if (window.viewer) {
         window.viewer
           .getCraneManager()
           .updateCraneRotation(matchItem.id, rotation);
       }
-      const carDistance = calculatePostureAbility(
-        matchItem.radius || 0,
-        parseFloat(eventData[1].toFixed(2))
-      );
-      const originalArmPitch = parseFloat(eventData[1].toFixed(2));
-      updateCraneArmPitchText(matchItem.id, originalArmPitch.toFixed(2));
-      updateCraneArmPitch(matchItem.id, carDistance);
-      if (window.viewer) {
-        window.viewer
-          .getCraneManager()
-          .updateCraneArmPitch(matchItem.id, carDistance);
+
+      if (craneType === CraneType.BOOM) {
+        const carDistance = calculatePostureAbility(
+          matchItem.radius || 0,
+          parseFloat(eventData[1].toFixed(2))
+        );
+        const originalArmPitch = parseFloat(eventData[1].toFixed(2));
+      
+        updateCraneArmPitchText(matchItem.id, originalArmPitch.toFixed(2));
+        updateCraneArmPitch(matchItem.id, carDistance);
+        if (window.viewer) {
+          window.viewer
+            .getCraneManager()
+            .updateCraneArmPitch(matchItem.id, carDistance);
+        }
+  
+        
+      } else {
+        console.error("eventData-sss", eventData);
+        const carDistance = parseFloat(eventData[1].toFixed(2));
+        updateCraneCarDistanceText(matchItem.id, carDistance.toFixed(2));
+        updateCraneCarDistance(matchItem.id, carDistance);
+        if (window.viewer) {
+          window.viewer
+            .getCraneManager()
+            .updateCraneCarDistance(matchItem.id, carDistance);
+        }
       }
+
       const ropeLength = parseFloat((eventData[2] / 10).toFixed(2));
       updateRopeLength(matchItem.id, ropeLength);
       if (window.viewer) {
