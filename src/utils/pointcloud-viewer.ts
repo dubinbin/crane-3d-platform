@@ -35,6 +35,22 @@ export class PointCloudViewer {
   private pointCloud: THREE.Points | null = null;
   private arcLine: THREE.Points | null = null;
   private arcTargetMarker: THREE.Object3D | null = null;
+  // 点吊（pointLift）轨迹线
+  private pointLiftTrailLine: THREE.Line | null = null;
+  private pointLiftTrailGeometry: THREE.BufferGeometry | null = null;
+  private pointLiftTrailMaterial: THREE.LineBasicMaterial | null = null;
+  private pointLiftTrailPoints: THREE.Vector3[] = [];
+  private pointLiftTrailCraneId: string | null = null;
+  private pointLiftTrailRecording: boolean = false;
+  private pointLiftTrailMaxPoints: number = 3000;
+  private pointLiftTrailMinStep: number = 0.001; // 最小采样位移（世界坐标）
+  private pointLiftTrailSampleIntervalMs: number = 50; // 兜底采样间隔（避免纯Z小步进时漏点）
+  private pointLiftTrailLastSampleTime: number = 0;
+  // 预测路径线
+  private predictedPathLine: THREE.Line | null = null;
+  private predictedPathGeometry: THREE.BufferGeometry | null = null;
+  private predictedPathMaterial: THREE.LineBasicMaterial | null = null;
+  private predictedPathPoints: THREE.Vector3[] = [];
   private fbxLoader: FBXLoader;
   private pcdLoader: PCDLoader;
   private gltfLoader: GLTFLoader;
@@ -374,7 +390,6 @@ export class PointCloudViewer {
     directionalLight4.position.set(0, 0, -10);
     this.scene.add(directionalLight4);
   }
-
   public flipTheMapView(): void {
     if (!this.pointCloud) return;
     const box = new THREE.Box3().setFromObject(this.pointCloud);
@@ -711,7 +726,7 @@ export class PointCloudViewer {
       await this.fetchFileAndHandle(`/pcd/${jsonData.pcd_file_name}.pcd`, `${jsonData.pcd_file_name}.pcd`);
       if (jsonData) {
         const {craneList} = jsonData;
-        craneList.forEach((crane: { crane_id: string; crane_name: string; crane_type: CraneType; crane_position: { x: number; y: number; z: number }; crane_height: number }) => {
+        craneList.forEach((crane: { crane_id: string; crane_name: string; crane_type: CraneType; crane_position: { x: number; y: number; z: number }; crane_height: number; crane_radius: number; crane_rope_percent: number }) => {
           const craneInfo: CraneInfo = {
             id: crane.crane_id,
             name: crane.crane_name,
@@ -723,8 +738,10 @@ export class PointCloudViewer {
               y: crane.crane_position.y,
               z: crane.crane_position.z,
             },
-            radius: 60,
+            radius: crane.crane_radius,
             height: crane.crane_height / 3,
+            originalHeight: crane.crane_height,
+            ropePercent: crane.crane_rope_percent,
           };
           this.craneManager.addCrane(craneInfo);
           this.craneManager.updateCranePosition(craneInfo.id, 'z', craneInfo?.position?.z || 0);
@@ -1016,6 +1033,44 @@ export class PointCloudViewer {
   private animate = (): void => {
     requestAnimationFrame(this.animate);
 
+    // 点吊轨迹：采样吊钩位置并更新线
+    if (this.pointLiftTrailRecording && this.pointLiftTrailCraneId) {
+      const crane = this.craneManager.getCraneById(this.pointLiftTrailCraneId);
+      if (crane) {
+        const userData = crane.userData as CraneUserData;
+        const hookPos = new THREE.Vector3();
+
+        if (userData.hook) {
+          hookPos.copy(userData.hook.position);
+        } else if (userData.hooksHeader) {
+          // 兜底：用 hooksHeader 世界坐标 - ropeLength
+          userData.hooksHeader.getWorldPosition(hookPos);
+          hookPos.z -= userData.ropeLength || 3.0;
+        }
+
+        const now = performance.now();
+        const last = this.pointLiftTrailPoints[this.pointLiftTrailPoints.length - 1];
+        const movedEnough = !last || hookPos.distanceTo(last) >= this.pointLiftTrailMinStep;
+        const timeDue =
+          !this.pointLiftTrailLastSampleTime ||
+          now - this.pointLiftTrailLastSampleTime >= this.pointLiftTrailSampleIntervalMs;
+        // 如果只有一个点，强制添加第二个点（即使移动很小）以确保线能显示
+        const needsSecondPoint = this.pointLiftTrailPoints.length === 1;
+        const shouldAdd = needsSecondPoint || movedEnough || timeDue;
+
+        if (shouldAdd) {
+          this.pointLiftTrailLastSampleTime = now;
+          this.pointLiftTrailPoints.push(hookPos.clone());
+
+          if (this.pointLiftTrailPoints.length > this.pointLiftTrailMaxPoints) {
+            this.pointLiftTrailPoints.shift();
+          }
+
+          this.updatePointLiftTrailGeometry();
+        }
+      }
+    }
+
     // 如果有规划路径，则做一个 0 -> 100% 的线性填充动画
     if (this.arcLine && this.arcTotalPoints > 1 && this.arcAnimationStartTime !== null) {
       const now = performance.now();
@@ -1043,6 +1098,267 @@ export class PointCloudViewer {
     this.renderer.render(this.scene, this.camera);
     this.labelRenderer.render(this.scene, this.camera);
   };
+
+  private updatePointLiftTrailGeometry(): void {
+    if (!this.pointLiftTrailGeometry || !this.pointLiftTrailLine) return;
+    if (this.pointLiftTrailPoints.length < 2) return; // Line 至少需要 2 个点
+
+    const positions = new Float32Array(this.pointLiftTrailPoints.length * 3);
+    for (let i = 0; i < this.pointLiftTrailPoints.length; i++) {
+      const p = this.pointLiftTrailPoints[i];
+      positions[i * 3 + 0] = p.x;
+      positions[i * 3 + 1] = p.y;
+      positions[i * 3 + 2] = p.z;
+    }
+
+    this.pointLiftTrailGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this.pointLiftTrailGeometry.computeBoundingSphere();
+    this.pointLiftTrailGeometry.attributes.position.needsUpdate = true;
+  }
+
+  private ensurePointLiftTrailLine(): void {
+    if (this.pointLiftTrailLine) return;
+
+    this.pointLiftTrailGeometry = new THREE.BufferGeometry();
+    this.pointLiftTrailMaterial = new THREE.LineBasicMaterial({
+      color: 0xffff00, // 黄色
+      transparent: true,
+      opacity: 0.9,
+      // 轨迹线更希望"永远可见"（避免被点云/模型遮挡导致看起来缺段）
+      depthTest: false,
+    });
+    this.pointLiftTrailLine = new THREE.Line(this.pointLiftTrailGeometry, this.pointLiftTrailMaterial);
+    this.pointLiftTrailLine.name = 'point-lift-trail';
+    this.scene.add(this.pointLiftTrailLine);
+  }
+
+  private removePointLiftTrailLine(): void {
+    if (this.pointLiftTrailLine) {
+      this.scene.remove(this.pointLiftTrailLine);
+      this.pointLiftTrailLine = null;
+    }
+    if (this.pointLiftTrailGeometry) {
+      this.pointLiftTrailGeometry.dispose();
+      this.pointLiftTrailGeometry = null;
+    }
+    if (this.pointLiftTrailMaterial) {
+      this.pointLiftTrailMaterial.dispose();
+      this.pointLiftTrailMaterial = null;
+    }
+  }
+
+  /**
+   * 开始记录"点吊"轨迹（从当前 hook 位置开始，随后按帧采样）
+   */
+  startPointLiftTrail(craneId: string): void {
+    this.pointLiftTrailCraneId = craneId;
+    this.pointLiftTrailRecording = true;
+    this.pointLiftTrailPoints = [];
+    this.pointLiftTrailLastSampleTime = performance.now();
+    this.ensurePointLiftTrailLine();
+    // 立即采样一次作为起点（Line 至少需要 2 个点才能显示，因此先写入重复点）
+    const crane = this.craneManager.getCraneById(craneId);
+    if (!crane) {
+      console.warn(`[pointLiftTrail] crane not found: ${craneId}`);
+      return;
+    }
+    const userData = crane.userData as CraneUserData;
+    const hookPos = new THREE.Vector3();
+    if (userData.hook) {
+      hookPos.copy(userData.hook.position);
+    } else if (userData.hooksHeader) {
+      userData.hooksHeader.getWorldPosition(hookPos);
+      hookPos.z -= userData.ropeLength || 3.0;
+    }
+    this.pointLiftTrailPoints.push(hookPos.clone(), hookPos.clone());
+    this.updatePointLiftTrailGeometry();
+  }
+
+  /**
+   * 停止记录"点吊"轨迹（默认保留线，便于回看）
+   */
+  stopPointLiftTrail(): void {
+    this.pointLiftTrailRecording = false;
+    this.pointLiftTrailCraneId = null;
+    this.pointLiftTrailLastSampleTime = 0;
+  }
+
+  /**
+   * 清空"点吊"轨迹并移除线
+   */
+  clearPointLiftTrail(): void {
+    this.pointLiftTrailRecording = false;
+    this.pointLiftTrailCraneId = null;
+    this.pointLiftTrailPoints = [];
+    this.pointLiftTrailLastSampleTime = 0;
+    this.removePointLiftTrailLine();
+  }
+
+  /**
+   * 绘制预测路径
+   * @param craneId - 塔吊ID
+   * @param pathData - 路径数据数组，每个元素为 [旋转角度(度), 小车距离(米), 吊钩高度(米)]
+   */
+  drawPredictedPath(craneId: string, pathData: Array<[number, number, number]>): void {
+    const crane = this.craneManager.getCraneById(craneId);
+    if (!crane) {
+      console.warn(`[predictedPath] crane not found: ${craneId}`);
+      return;
+    }
+
+    // 获取塔吊信息
+    const craneInfo = useStore.getState().cranes.find(c => c.id === craneId);
+    if (!craneInfo || !craneInfo.position) {
+      console.warn(`[predictedPath] crane info not found: ${craneId}`);
+      return;
+    }
+
+    const userData = crane.userData as CraneUserData;
+    const cranePosition = new THREE.Vector3(
+      craneInfo.position.x,
+      craneInfo.position.y,
+      craneInfo.position.z
+    );
+
+    // 使用 hook.position 作为起点（吊钩当前位置，已经在正确的世界坐标系下）
+    if (!userData.hook) {
+      console.warn(`[predictedPath] hook not found for crane: ${craneId}`);
+      return;
+    }
+
+    const startPos = new THREE.Vector3();
+    userData.hook.getWorldPosition(startPos);
+
+    // 以塔身中心（cranePosition）作为极坐标中心
+    const towerCenter = cranePosition.clone();
+
+    // 获取 hooksHeader 的世界坐标（作为塔顶参考点）
+    const hooksHeaderWorldPos = new THREE.Vector3();
+    if (userData.hooksHeader) {
+      userData.hooksHeader.getWorldPosition(hooksHeaderWorldPos);
+    } else {
+      // 如果没有 hooksHeader，使用 cranePosition + height 作为塔顶
+      hooksHeaderWorldPos.set(
+        cranePosition.x,
+        cranePosition.y,
+        cranePosition.z + (craneInfo.height || 0)
+      );
+    }
+
+    // 计算塔顶高度（米）：originalHeight * ropePercent / 100
+    const towerTopHeightMeters = craneInfo.originalHeight * ((craneInfo.ropePercent || 100) / 100);
+
+    // 转换路径点到世界坐标
+    const worldPoints: THREE.Vector3[] = [startPos.clone()];
+    
+    for (const [angle, radius, height] of pathData) {
+      // 角度直接使用后端给的角度（0-360°），不再加偏移
+      const angleRad = angle * Math.PI / 180;
+
+      // 半径：直接使用后端给的半径做一个简单缩放，避免过大
+      // 当前路径点数据中 radius 大约在 20~40 左右，这里按 1/10 缩放到与场景接近的尺度
+      let r = radius / 10.8;
+      if (isNaN(r)) r = 0;
+
+      // 高度计算：与 ropeLength 计算方式一致
+      // ropeLength = (originalHeight * ropePercent / 100) - height
+      // 所以：ropeLength = towerTopHeightMeters - height（米）
+      const ropeLengthMeters = towerTopHeightMeters - height;
+      // 转换为模型单位（与 updateRopeLength 保持一致：除以 10）
+      const clampedRopeLength = ropeLengthMeters / 10;
+      
+      // 吊钩的 Z 坐标 = hooksHeader 的 Z 坐标 - 吊绳长度（模型单位）
+      const worldZ = hooksHeaderWorldPos.z - clampedRopeLength;
+
+      // 计算世界坐标（极坐标 -> 笛卡尔），以塔身中心为原点
+      const worldX = towerCenter.x + Math.cos(angleRad) * r;
+      const worldY = towerCenter.y + Math.sin(angleRad) * r;
+      
+
+      worldPoints.push(new THREE.Vector3(worldX, worldY, worldZ));
+    }
+
+    // 更新预测路径线
+    this.predictedPathPoints = worldPoints;
+    this.updatePredictedPathGeometry();
+  }
+
+  /**
+   * 更新预测路径几何体
+   */
+  private updatePredictedPathGeometry(): void {
+    if (this.predictedPathPoints.length < 2) {
+      this.removePredictedPathLine();
+      return;
+    }
+
+    if (!this.predictedPathGeometry) {
+      this.predictedPathGeometry = new THREE.BufferGeometry();
+    }
+
+    const positions = new Float32Array(this.predictedPathPoints.length * 3);
+    for (let i = 0; i < this.predictedPathPoints.length; i++) {
+      const p = this.predictedPathPoints[i];
+      positions[i * 3 + 0] = p.x;
+      positions[i * 3 + 1] = p.y;
+      positions[i * 3 + 2] = p.z;
+    }
+
+    this.predictedPathGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    this.predictedPathGeometry.computeBoundingSphere();
+    this.predictedPathGeometry.attributes.position.needsUpdate = true;
+
+    this.ensurePredictedPathLine();
+  }
+
+  /**
+   * 确保预测路径线存在
+   */
+  private ensurePredictedPathLine(): void {
+    if (this.predictedPathLine) return;
+
+    if (!this.predictedPathGeometry) {
+      this.predictedPathGeometry = new THREE.BufferGeometry();
+    }
+
+    this.predictedPathMaterial = new THREE.LineBasicMaterial({
+      color: 0x00ff00, // 绿色，用于区分实际轨迹（黄色）
+      transparent: true,
+      opacity: 0.8,
+      linewidth: 2,
+      depthTest: false,
+    });
+
+    this.predictedPathLine = new THREE.Line(this.predictedPathGeometry, this.predictedPathMaterial);
+    this.predictedPathLine.name = 'predicted-path';
+    this.scene.add(this.predictedPathLine);
+  }
+
+  /**
+   * 移除预测路径线
+   */
+  private removePredictedPathLine(): void {
+    if (this.predictedPathLine) {
+      this.scene.remove(this.predictedPathLine);
+      this.predictedPathLine = null;
+    }
+    if (this.predictedPathGeometry) {
+      this.predictedPathGeometry.dispose();
+      this.predictedPathGeometry = null;
+    }
+    if (this.predictedPathMaterial) {
+      this.predictedPathMaterial.dispose();
+      this.predictedPathMaterial = null;
+    }
+    this.predictedPathPoints = [];
+  }
+
+  /**
+   * 清空预测路径
+   */
+  clearPredictedPath(): void {
+    this.removePredictedPathLine();
+  }
 
   /**
    * 更新文件信息显示
@@ -1082,6 +1398,8 @@ export class PointCloudViewer {
     }
 
     this.clearArcVisualization();
+    this.clearPointLiftTrail();
+    this.clearPredictedPath();
 
     // 清理点云
     if (this.pointCloud) {

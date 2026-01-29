@@ -24,8 +24,15 @@ class WebSocketService {
    * @param url 服务器地址，默认为开发环境地址
    */
   connect(url?: string): void {
+    // 如果已经连接或正在连接中，避免重复连接
     if (this.socket?.connected) {
       console.log('WebSocket already connected');
+      return;
+    }
+    
+    // 检查 socket 是否存在且正在连接中
+    if (this.socket && this.socket.active) {
+      console.log('WebSocket connection in progress, skipping duplicate connect');
       return;
     }
 
@@ -63,7 +70,6 @@ class WebSocketService {
     this.socket.on('connect', () => {
       this.isConnected = true;
       this.reconnectAttempts = 0;
-      console.log('WebSocket connected:', this.socket?.id);
       this.emitLocal('connected', { socketId: this.socket?.id });
       this.emitLocal('connect', { socketId: this.socket?.id });
     });
@@ -93,7 +99,7 @@ class WebSocketService {
 
     // 监听socket原生事件，并转发到内部事件系统
     // 注意：connect和disconnect已经在setupEventListeners中处理了
-    const eventsToForward = ['client-msg', 'server-msg'];
+    const eventsToForward = ['client-msg', 'server-msg', 'server-websocket-msg'];
     
     eventsToForward.forEach(eventName => {
       this.socket!.on(eventName, (data: unknown) => {

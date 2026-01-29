@@ -17,11 +17,17 @@ interface State {
   clearAllCranes: () => void;
   currentOperationCraneId: string | null;
   setCurrentOperationCraneId: (id: string | null) => void;
+  currentMovingCraneId: string | null;
+  setCurrentMovingCraneId: (id: string | null) => void;
   errorLogs: {
     message: string;
     timestamp: number;
   }[];
+  addErrorLog: (log: { message: string; timestamp: number }) => void;
+  clearErrorLogs: () => void;
   updateOtherWorkParams: (id: string, params: { workTime?: string; workerName?: string; loadMatrix?: number; weight?: number; windSpeed?: number; swingWidth?: number; armInclinationAngle?: number }) => void;
+  isInPointLift: boolean;
+  setIsInPointLift: (isInPointLift: boolean) => void;
 }
 
 export const useStore = create<State>((set) => ({
@@ -92,6 +98,10 @@ export const useStore = create<State>((set) => ({
 
   setCurrentOperationCraneId: (id) => set({ currentOperationCraneId: id }),
 
+  currentMovingCraneId: null,
+
+  setCurrentMovingCraneId: (id) => set({ currentMovingCraneId: id }),
+
   updateCraneRotationText: (id, value) => set((state) => ({
     cranes: state.cranes.map(c => 
       c.id === id ? { ...c, currentRotationAngleText: value } : c
@@ -103,4 +113,7 @@ export const useStore = create<State>((set) => ({
       c.id === id ? { ...c, currentArmPitchAngleText: value } : c
     )
   })),
+
+  isInPointLift: false,
+  setIsInPointLift: (isInPointLift) => set({ isInPointLift }),
 }));

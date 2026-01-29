@@ -6,6 +6,8 @@ import Three3DView from "./components/three-3d-view";
 import AlertModal from "./components/alert-model";
 import CraneInfoTooltip from "./components/crane-info-tooltip";
 import { WebSocketAPIComponent } from "./components/webSocket-api-component";
+import { PointLiftTrailController } from "./components/point-lift-trail-controller";
+// import LeftPanelArea from "./components/left-panel-area";
 // import Header from "./components/header";
 // import InfoPanel from "./components/info-panel";
 // import Header from "./components/header";
@@ -84,6 +86,7 @@ function App() {
     <>
       {/* <Header /> */}
       <WebSocketAPIComponent />
+      <PointLiftTrailController />
       <Three3DView />
       {/* <LeftPanelArea /> */}
       {/* <InfoPanel /> */}

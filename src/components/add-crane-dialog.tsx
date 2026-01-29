@@ -49,6 +49,7 @@ export default function AddCraneDialog() {
         position: { x, y, z },
         radius: Number(craneArmLength),
         height: Number(craneHeight),
+        originalHeight: Number(craneHeight),
         currentHookHeight: 0,
         currentCarDistance: 0,
         currentRotationAngle: 0,

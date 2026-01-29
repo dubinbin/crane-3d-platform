@@ -1,8 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { webSocketService } from "../services/websocket";
-// import { Button } from "antd";
 import { Deserialize, type Message } from "../utils/deserialize";
-import { WEBSOCKET_RESPONSE_CODE_MAP } from "../constants";
+import { SYSTEM_INFO_TYPE_MAP, WEBSOCKET_RESPONSE_CODE_MAP } from "../constants";
 import { useStore } from "../store";
 import {
   calcRotationAngle,
@@ -10,12 +9,14 @@ import {
 } from "../utils/posture-ability";
 import { AlertModalManager } from "./alert-model";
 import { CraneType } from "../types";
-// import { useStore } from "../store";
+import { handleServerWebsocketMsg } from "./server-websocket-handle";
 
 export const WebSocketAPIComponent = () => {
   const updateCraneArmPitch = useStore((state) => state.updateCraneArmPitch);
   const updateRopeLength = useStore((state) => state.updateRopeLength);
   const updateCraneRotation = useStore((state) => state.updateCraneRotation);
+  const setIsInPointLift = useStore((state) => state.setIsInPointLift);
+  const setCurrentMovingCraneId = useStore((state) => state.setCurrentMovingCraneId);
   const updateCraneRotationText = useStore(
     (state) => state.updateCraneRotationText
   );
@@ -26,7 +27,32 @@ export const WebSocketAPIComponent = () => {
   
   const updateCraneCarDistanceText = useStore((state) => state.updateCraneCarDistanceText);
   const cranelist = useStore((state) => state.cranes);
+  
+  // 使用 ref 保存最新的值，避免闭包问题
+  const cranelistRef = useRef(cranelist);
+  cranelistRef.current = cranelist;
+  
+  const updateFunctionsRef = useRef({
+    updateCraneArmPitch,
+    updateRopeLength,
+    updateCraneRotation,
+    updateCraneRotationText,
+    updateCraneArmPitchText,
+    updateCraneCarDistance,
+    updateCraneCarDistanceText,
+  });
+  // 更新 ref 中的函数引用
+  updateFunctionsRef.current = {
+    updateCraneArmPitch,
+    updateRopeLength,
+    updateCraneRotation,
+    updateCraneRotationText,
+    updateCraneArmPitchText,
+    updateCraneCarDistance,
+    updateCraneCarDistanceText,
+  };
 
+  // 只在组件挂载时连接一次 WebSocket
   useEffect(() => {
     // 先连接websocket
     webSocketService.connect();
@@ -36,79 +62,79 @@ export const WebSocketAPIComponent = () => {
       console.log("Socket connected!");
     };
 
-    const handleServerMsg = (data: unknown) => {
-      console.log("Received server-msg:", data);
-      console.log(
-        "Data type:",
-        typeof data,
-        "Constructor:",
-        data?.constructor?.name
-      );
+    const toUint8Array = async (data: unknown): Promise<Uint8Array | null> => {
+      if (data instanceof Uint8Array) return data;
+      if (data instanceof ArrayBuffer) return new Uint8Array(data);
+      if (data instanceof Blob) return new Uint8Array(await data.arrayBuffer());
 
-      let buffer: Uint8Array | null = null;
-
-      if (data instanceof ArrayBuffer) {
-        console.log("Data is ArrayBuffer");
-        // 直接从 ArrayBuffer 创建 Int8Array 视图来访问 [[Int8Array]] 数据
-        const int8Array = new Int8Array(data);
-        console.log("[[Int8Array]] data:", int8Array);
-        console.log("Int8Array length:", int8Array.length);
-        console.log("Int8Array values:", Array.from(int8Array));
-
-        // 转换为 Uint8Array 进行处理
-        buffer = new Uint8Array(
-          int8Array.buffer,
-          int8Array.byteOffset,
-          int8Array.byteLength
-        );
+      // socket.io 在 polling 等情况下可能给 { type: 'Buffer', data: number[] }
+      if (
+        data &&
+        typeof data === "object" &&
+        "type" in data &&
+        (data as { type?: unknown }).type === "Buffer" &&
+        "data" in data &&
+        Array.isArray((data as { data?: unknown }).data)
+      ) {
+        return new Uint8Array((data as { data: number[] }).data);
       }
-      // 统一处理提取到的 buffer
-      if (buffer && buffer.length > 0) {
-        console.log("Final buffer processing:");
-        console.log("Buffer extracted:", buffer);
-        console.log("Buffer length:", buffer.length);
-        console.log(
-          "Buffer bytes (hex):",
-          Array.from(buffer)
-            .map((b) => b.toString(16).padStart(2, "0"))
-            .join(" ")
-        );
 
+      return null;
+    };
+
+    const FRAME_LEN = 40; // 与后端 serializeMessage 中的 byteNumber 保持一致
+
+    const handleServerMsg = async (data: unknown) => {
+      const buffer = await toUint8Array(data);
+
+      if (!buffer || buffer.length === 0) {
+        console.error("Could not extract valid buffer from data", data);
+        return;
+      }
+
+      // TCP chunk 可能一次带多帧（40 bytes/帧），这里按帧解包
+      const frames = Math.floor(buffer.length / FRAME_LEN);
+      if (frames === 0) {
+        console.warn(`WS got ${buffer.length} bytes (<${FRAME_LEN}), skip`, buffer);
+        return;
+      }
+
+      for (let i = 0; i < frames; i++) {
         try {
-          // 调用deserialize方法，对应Flutter的处理逻辑
-          const message: Message = Deserialize.deserialize(buffer);
-          console.log("Deserialized message:", message);
-
-          // 处理解析后的消息，对应Flutter的handleSocketMessage().onData(message)
+          const message: Message = Deserialize.deserialize(buffer, i, FRAME_LEN);
           handleSocketMessage(message);
         } catch (error) {
-          console.error("Error deserializing:", error);
+          console.error("Error deserializing frame:", i, error);
         }
-      } else {
-        console.log("Could not extract valid buffer from data");
-        console.log("Full object inspection:");
-        console.log("Object keys:", Object.keys(data as object));
-        console.log(
-          "Object properties:",
-          Object.getOwnPropertyNames(data as object)
-        );
       }
     };
 
     // 对应Flutter的handleSocketMessage().onData(message)
     const handleSocketMessage = (message: Message) => {
-      console.log("Processing socket message:", message);
-      console.log("UserID:", message.userID);
-      console.log("TimeStamp:", message.timeStamp);
-      console.log("Type:", message.type);
-      console.log("ValueArray1 (Int16):", message.valueArray1);
-      console.log("ValueArray2 (Float64):", message.valueArray2);
+      // console.log("Processing socket message:", message);
+      // console.log("UserID:", message.userID);
+      // console.log("TimeStamp:", message.timeStamp);
+      // console.log("Type:", message.type);
+      // console.log("ValueArray1 (Int16):", message.valueArray1);
+      // console.log("ValueArray2 (Float64):", message.valueArray2);
 
 
       if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS) {
         const eventData: number[] = message.valueArray1;
         handleTaskCurrentStatus(eventData);
         return;
+      }
+
+      if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.SYSTEM_INFO) {
+        if (message.valueArray1?.[0] === SYSTEM_INFO_TYPE_MAP.pointLift) {
+         setIsInPointLift(true);
+        } else {
+          setIsInPointLift(false);
+        }
+      }
+
+      if ([WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS, WEBSOCKET_RESPONSE_CODE_MAP.EMERGENCY_STOP, WEBSOCKET_RESPONSE_CODE_MAP.AUTO_TRANSPORT_END].includes(message.type)) {
+        setIsInPointLift(false);
       }
 
       // if (message.type >= 100 && message.type <= 200) {
@@ -119,10 +145,11 @@ export const WebSocketAPIComponent = () => {
       // }
 
 
-      if (message.type === 20) {
-        console.error("message.valueArray2", message.valueArray2);
+      if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE) {
         // const craneId = message.type;
-        sendToDifferentCrane(message.valueArray2, 101 as unknown as number);
+        const craneId = 101 as unknown as number;
+        setCurrentMovingCraneId(craneId.toString());
+        sendToDifferentCrane(message.valueArray2, craneId);
         return;
       }
     };
@@ -142,74 +169,75 @@ export const WebSocketAPIComponent = () => {
       console.log("Socket disconnected");
     };
 
+    // 定义 sendToDifferentCrane 函数，使用 ref 访问最新的值
+    const sendToDifferentCrane = (eventData: number[], craneId: number) => {
+      const matchItem = cranelistRef.current.find((c) => c.id === craneId.toString());
+      const craneType = matchItem?.type;
+      const updates = updateFunctionsRef.current;
+      
+      if (matchItem) {
+        const originalRotation = parseFloat(eventData[0].toFixed(2));
+        const rotation = calcRotationAngle(originalRotation);
+        updates.updateCraneRotationText(matchItem.id, originalRotation.toFixed(2));
+        updates.updateCraneRotation(matchItem.id, rotation);
+        if (window.viewer) {
+          window.viewer
+            .getCraneManager()
+            .updateCraneRotation(matchItem.id, rotation);
+        }
+
+        if (craneType === CraneType.BOOM) {
+          const carDistance = calculatePostureAbility(
+            matchItem.radius || 0,
+            parseFloat(eventData[1].toFixed(2))
+          );
+          const originalArmPitch = parseFloat(eventData[1].toFixed(2));
+        
+          updates.updateCraneArmPitchText(matchItem.id, originalArmPitch.toFixed(2));
+          updates.updateCraneArmPitch(matchItem.id, carDistance);
+          if (window.viewer) {
+            window.viewer
+              .getCraneManager()
+              .updateCraneArmPitch(matchItem.id, carDistance);
+          }
+        } else {
+          const carDistance = parseFloat(eventData[1].toFixed(2));
+          updates.updateCraneCarDistanceText(matchItem.id, carDistance.toFixed(2));
+          updates.updateCraneCarDistance(matchItem.id, carDistance);
+          if (window.viewer) {
+            window.viewer
+              .getCraneManager()
+              .updateCraneCarDistance(matchItem.id, carDistance);
+          }
+        }
+
+        const ropeLength = (matchItem.originalHeight * ((matchItem.ropePercent || 100) / 100)) - eventData[2];
+
+        updates.updateRopeLength(matchItem.id, ropeLength);
+        if (window.viewer) {
+          window.viewer
+            .getCraneManager()
+            .updateRopeLength(matchItem.id, ropeLength);
+        }
+      } else {
+        console.error("No match item found");
+      }
+    };
+
     // 使用WebSocketService的方法来监听事件
     webSocketService.on("connect", handleConnect);
     webSocketService.on("server-msg", handleServerMsg);
     webSocketService.on("disconnect", handleDisconnect);
+    webSocketService.on("server-websocket-msg", handleServerWebsocketMsg);
 
     // 清理函数
     return () => {
       webSocketService.off("connect", handleConnect);
       webSocketService.off("server-msg", handleServerMsg);
       webSocketService.off("disconnect", handleDisconnect);
+      webSocketService.off("server-websocket-msg", handleServerWebsocketMsg);
     };
-  }, [cranelist]);
-
-  const sendToDifferentCrane = (eventData: number[], craneId: number) => {
-    const matchItem = cranelist.find((c) => c.id === craneId.toString());
-    console.log("matchItem", matchItem);
-    const craneType = matchItem?.type;
-    if (matchItem) {
-      const originalRotation = parseFloat(eventData[0].toFixed(2));
-      const rotation = calcRotationAngle(originalRotation);
-      updateCraneRotationText(matchItem.id, originalRotation.toFixed(2));
-      console.error("rotation", rotation);
-      updateCraneRotation(matchItem.id, rotation);
-      if (window.viewer) {
-        window.viewer
-          .getCraneManager()
-          .updateCraneRotation(matchItem.id, rotation);
-      }
-
-      if (craneType === CraneType.BOOM) {
-        const carDistance = calculatePostureAbility(
-          matchItem.radius || 0,
-          parseFloat(eventData[1].toFixed(2))
-        );
-        const originalArmPitch = parseFloat(eventData[1].toFixed(2));
-      
-        updateCraneArmPitchText(matchItem.id, originalArmPitch.toFixed(2));
-        updateCraneArmPitch(matchItem.id, carDistance);
-        if (window.viewer) {
-          window.viewer
-            .getCraneManager()
-            .updateCraneArmPitch(matchItem.id, carDistance);
-        }
-  
-        
-      } else {
-        console.error("eventData-sss", eventData);
-        const carDistance = parseFloat(eventData[1].toFixed(2));
-        updateCraneCarDistanceText(matchItem.id, carDistance.toFixed(2));
-        updateCraneCarDistance(matchItem.id, carDistance);
-        if (window.viewer) {
-          window.viewer
-            .getCraneManager()
-            .updateCraneCarDistance(matchItem.id, carDistance);
-        }
-      }
-
-      const ropeLength = parseFloat((eventData[2] / 10).toFixed(2));
-      updateRopeLength(matchItem.id, ropeLength);
-      if (window.viewer) {
-        window.viewer
-          .getCraneManager()
-          .updateRopeLength(matchItem.id, ropeLength);
-      }
-    } else {
-      console.error("No match item found");
-    }
-  };
+  }, [setCurrentMovingCraneId, setIsInPointLift]); // 依赖 zustand actions（稳定引用）
 
   return (
     <div style={{ position: "absolute", top: 0, right: 0, zIndex: 1000 }}></div>

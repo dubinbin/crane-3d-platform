@@ -9,6 +9,7 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { CraneType, type CraneInfo, type OnlineStatus } from '../types';
 
 export interface CraneUserData {
+  radius: number;
   id: string;
   name: string;
   topController: THREE.Object3D | null;
@@ -359,6 +360,7 @@ export class CraneManager {
       newCrane.add(label);
 
       const userData: CraneUserData = { 
+        radius: craneData.radius,
         id: craneData.id, 
         name: craneData.name,
         topController: topController,
@@ -402,6 +404,7 @@ export class CraneManager {
       newCrane.add(label);
 
       const userData: CraneUserData = { 
+        radius: craneData.radius,
         id: craneData.id, 
         name: craneData.name,
         topController: topController,
@@ -498,7 +501,6 @@ export class CraneManager {
       // 更新吊绳位置
       this.updateRopePosition(crane);
      
-      console.log(`更新塔吊 ${craneId} ${axis} 位置: ${value}`);
     }
   }
 
@@ -519,7 +521,6 @@ export class CraneManager {
         // 更新吊绳位置
         this.updateRopePosition(crane);
        
-        console.log(`更新塔吊 ${craneId} 上半部分旋转角度: ${angle}°`);
       } else {
         console.warn(`塔吊 ${craneId} 没有找到上半部分控制器 (test_parent)`);
       }
@@ -555,7 +556,6 @@ export class CraneManager {
     // 更新吊绳位置
     this.updateRopePosition(crane);
    
-    console.log(`更新塔吊 ${craneId} 臂膀俯仰角度: ${clampedAngle}°`);
   }
 
   /**
@@ -567,15 +567,23 @@ export class CraneManager {
   updateCraneCarDistance(craneId: string, distance: number): void {
     const crane = this.cranes.find(c => (c.userData as CraneUserData).id === craneId);
     if (!crane) return;
-    
+
     const userData = crane.userData as CraneUserData;
     if (!userData.hooksHeader) {
       console.warn(`塔吊 ${craneId} 没有找到小车 (main-car)`);
       return;
     }
 
+   // 这里需要换算一下，已经塔吊臂膀是按照60去划分的物理模型长度，类似于现在1个单位是1/60
+    // 所以如果传入臂膀长度是40米，那么实际的臂膀1个档位的长度应该 （40 / 60）
+
+    const changedDistancetoworld = distance * (60 / userData.radius);
+
+
+
     // 限制距离范围，避免小车移出吊臂范围
-    let clampedDistance = parseFloat(distance.toString()) / 3;
+    let clampedDistance = parseFloat(changedDistancetoworld.toString()) / 3;
+
     if (isNaN(clampedDistance)) clampedDistance = 0;
     clampedDistance = Math.max(0, Math.min(20, clampedDistance)) + 3; // 限制范围0-100
 
@@ -587,7 +595,6 @@ export class CraneManager {
     // 更新吊绳和钩子位置
     this.updateRopePosition(crane);
    
-    console.log(`更新塔吊 ${craneId} 小车距离: ${clampedDistance}`);
   }
 
   /**
@@ -625,7 +632,6 @@ export class CraneManager {
     // 更新吊绳位置
     this.updateRopePosition(crane);
    
-    console.log(`更新塔吊 ${craneId} 吊绳长度: ${clampedLength}`);
   }
 
   /**

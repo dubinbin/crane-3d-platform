@@ -10,13 +10,7 @@ export interface Message {
 export class Deserialize {
   // 对应Flutter的Message.deserialize(data, {offset = 0, length = 40})
   static deserialize(data: Uint8Array, offset: number = 0, length: number = 40): Message {
-    console.log("Deserializing message with length:", data.length);
-    console.log("Offset:", offset, "Length:", length);
-    console.log("Raw bytes:", Array.from(data).map(b => b.toString(16).padStart(2, '0')).join(' '));
-    
-    // debugPrint equivalent - 对应Flutter: 'first byte ===> ${data[0+offset*length]}'
-    // 注意：这个调试打印在 offset *= length 之前执行
-    console.log('first byte ===>', data[0 + offset * length]);
+
     
     // offset *= length (对应Flutter代码)
     offset *= length;
@@ -45,14 +39,6 @@ export class Deserialize {
     for (let i = 0; i < 3; i++) {
       deValueArray2.push(buffer.getFloat64(16 + 8 * i, true)); // 对应Flutter: buffer.getFloat64(16 + 8 * index + offset, Endian.little)
     }
-    
-    console.log("Parsed data:", {
-      deUserID,
-      deTimeStamp: deTimeStamp.toString(),
-      deType,
-      deValueArray1,
-      deValueArray2
-    });
     
     // 返回Message对象（对应Flutter的Message构造器）
     return {

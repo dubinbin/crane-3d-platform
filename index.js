@@ -223,81 +223,6 @@ function clearHeartbeat() {
   heartbeatCount = 0;
 }
 
-// 启动健康检查（每30秒检查一次连接状态）
-function startHealthCheck() {
-  clearHealthCheck();
-  
-  // 设置超时时间为120秒（如果120秒内没有收到数据，认为连接可能有问题）
-  // 增加超时时间，避免因为TCP服务器发送间隔较长而误判
-  const HEALTH_CHECK_INTERVAL = 30000; // 30秒检查一次
-  const DATA_TIMEOUT = 120000; // 120秒超时（2分钟）
-  
-  healthCheckTimer = setInterval(() => {
-    if (!tcpConnected || !tcpClient) {
-      return;
-    }
-    
-    const now = Date.now();
-    const timeSinceLastData = lastDataTime ? (now - lastDataTime) : null;
-    const wsClients = io.sockets.sockets.size;
-    
-    // 定期输出连接状态（用于调试）- 每2次检查输出一次（约1分钟）
-    const checkCount = Math.floor((now - (lastDataTime || now)) / HEALTH_CHECK_INTERVAL);
-    if (checkCount % 2 === 0 || timeSinceLastData > 30000) {
-      console.log(`🔍 连接状态检查: TCP=${tcpConnected}, 可读=${tcpClient.readable}, 可写=${tcpClient.writable}, 已销毁=${tcpClient.destroyed}, WebSocket客户端=${wsClients}, 距上次数据=${timeSinceLastData ? Math.round(timeSinceLastData/1000) + 's' : 'N/A'}`);
-    }
-    
-    // 如果设置了最后接收数据时间，检查是否超时
-    if (lastDataTime && (now - lastDataTime) > DATA_TIMEOUT) {
-      console.warn(`⚠️  TCP 连接超时：超过${DATA_TIMEOUT/1000}秒未收到数据，尝试重连...`);
-      console.warn(`   最后接收数据时间: ${new Date(lastDataTime).toLocaleTimeString()}, 当前时间: ${new Date(now).toLocaleTimeString()}`);
-      console.warn(`   Socket 状态: readable=${tcpClient.readable}, writable=${tcpClient.writable}, destroyed=${tcpClient.destroyed}`);
-      
-      // 只有在真正超时且socket状态异常时才重连
-      if (!tcpClient.readable && !tcpClient.writable) {
-        console.warn(`   确认连接已断开，准备重连...`);
-        tcpClient.destroy();
-      } else {
-        console.warn(`   Socket 状态正常，可能是TCP服务器发送间隔较长，继续等待...`);
-      }
-      return;
-    }
-    
-    // 如果超过30秒没有数据，输出警告（但还不重连）
-    if (lastDataTime && (now - lastDataTime) > 30000 && (now - lastDataTime) <= DATA_TIMEOUT) {
-      const bufferSize = tcpClient.readableLength || 0;
-      console.warn(`⚠️  警告：已超过30秒未收到TCP数据 (${Math.round((now - lastDataTime)/1000)}秒)`);
-      console.warn(`   TCP Socket 状态: readable=${tcpClient.readable}, writable=${tcpClient.writable}, destroyed=${tcpClient.destroyed}`);
-      console.warn(`   缓冲区数据: ${bufferSize} bytes`);
-      
-      // 如果有数据在缓冲区但没有触发data事件，尝试手动读取
-      if (bufferSize > 0) {
-        console.warn(`   ⚠️  发现缓冲区有 ${bufferSize} bytes 数据但未触发data事件！`);
-        console.warn(`   尝试手动触发数据读取...`);
-        // 注意：不能直接读取，因为data事件应该自动触发
-        // 这可能是TCP流被暂停了
-      }
-      
-      // 检查TCP流是否被暂停（通过检查是否有readable事件但数据没被读取）
-      if (tcpClient.readable && bufferSize === 0) {
-        console.warn(`   TCP流可读但缓冲区为空，可能是TCP服务器没有发送数据`);
-      }
-    }
-    
-    // 检查 socket 状态
-    if (!tcpClient.readable && !tcpClient.writable) {
-      console.warn('⚠️  TCP socket 既不可读也不可写，连接可能已断开');
-      tcpClient.destroy();
-      return;
-    }
-    
-    if (tcpClient.destroyed) {
-      console.warn('⚠️  TCP socket 已被销毁');
-      return;
-    }
-  }, HEALTH_CHECK_INTERVAL);
-}
-
 
 function startWsSendInterval() {
   wsSendInterval = setInterval(() => {
@@ -354,21 +279,20 @@ function connectToTcpServer() {
   // 启用 TCP keep-alive，防止连接被静默关闭
   tcpClient.setKeepAlive(true, 10000); // 10秒后开始发送 keep-alive 探测包
   tcpClient.setNoDelay(true); // 禁用 Nagle 算法，减少延迟
-  
-  const WS_PUSH_INTERVAL = 33; // 30fps（你可以改成 16 = 60fps）
 
   tcpClient.on('data', (chunk) => {
-    tcpPacketCount++;
-    lastDataTime = Date.now();
+    io.volatile.emit('server-msg', chunk);
+    // tcpPacketCount++;
+    // lastDataTime = Date.now();
   
-    latestTcpBuffer = chunk;
-    latestTcpTimestamp = lastDataTime;
+    // latestTcpBuffer = chunk;
+    // latestTcpTimestamp = lastDataTime;
   
-    if (tcpPacketCount % 100 === 0) {
-      console.log(
-        `📥 TCP recv: ${chunk.length} bytes, total=${tcpPacketCount}`
-      );
-    }
+    // if (tcpPacketCount % 100 === 0) {
+    //   console.log(
+    //     `📥 TCP recv: ${chunk.length} bytes, total=${tcpPacketCount}`
+    //   );
+    // }
   });
   // 连接成功回调
   tcpClient.connect(TCP_PORT, TCP_HOST, () => {
@@ -537,10 +461,68 @@ async function start() {
       
       // 使用最新配置连接 TCP 服务器
       connectToTcpServer();
+
+      connectToWebSocketServer();
     });
   } catch (error) {
     console.error('启动服务器失败:', error);
     process.exit(1);
+  }
+}
+
+// WebSocket 客户端连接（连接到 9002 端口）
+let wsClient = null;
+
+function connectToWebSocketServer() {
+  // 如果已经连接，先关闭旧连接
+  if (wsClient) {
+    wsClient.close();
+    wsClient = null;
+  }
+
+  let TCP_HOST = process.env.TCP_HOST || 
+    (jsonData.tcp_server_host === 'localhost' ? 'host.docker.internal' : jsonData.tcp_server_host);
+  
+  try {
+    wsClient = new WebSocket(`ws://${TCP_HOST}:9002/`);
+    
+    wsClient.onopen = () => {
+      console.log(`✅ WebSocket 客户端连接成功: ws://${TCP_HOST}:9002/`);
+    };
+    
+    wsClient.onclose = (event) => {
+      console.log(`❌ WebSocket 客户端连接断开: code=${event.code}, reason=${event.reason}`);
+      wsClient = null;
+      
+      // 如果不是主动关闭，尝试重连
+      if (!isShuttingDown && event.code !== 1000) {
+        console.log('🔄 3秒后尝试重连 WebSocket 服务器...');
+        setTimeout(() => {
+          if (!isShuttingDown) {
+            connectToWebSocketServer();
+          }
+        }, 3000);
+      }
+    };
+    
+    wsClient.onmessage = (event) => {
+      console.log('📥 server-websocket-msg', event.data);
+      // 将 Blob 转换为 ArrayBuffer 或直接传递
+      if (event.data instanceof Blob) {
+        event.data.arrayBuffer().then((buffer) => {
+          io.volatile.emit('server-websocket-msg', buffer);
+        });
+      } else {
+        io.volatile.emit('server-websocket-msg', event.data);
+      }
+    };
+    
+    wsClient.onerror = (error) => {
+      console.error('❌ WebSocket 客户端连接错误:', error);
+    };
+  } catch (error) {
+    console.error('❌ 创建 WebSocket 连接失败:', error);
+    wsClient = null;
   }
 }
 
@@ -571,6 +553,13 @@ function shutdown() {
     tcpClient.removeAllListeners('close'); // 移除 close 监听器，防止触发重连
     tcpClient.destroy();
     console.log('✅ TCP 连接已关闭');
+  }
+  
+  // 关闭 WebSocket 客户端连接
+  if (wsClient) {
+    wsClient.close(1000, 'Server shutting down');
+    wsClient = null;
+    console.log('✅ WebSocket 客户端连接已关闭');
   }
   
   // 关闭所有 Socket.IO 连接

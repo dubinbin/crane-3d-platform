@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "build:start": "npm run build && node index.js",
     "server": "node index.js",
+    "dev:all": "concurrently \"npm run server\" \"npm run dev\"",
     "deploy": "npm run build && pm2 start npm --name  towercrane-3dview -- server -- --port 9999"
   },
   "dependencies": {
@@ -28,6 +29,7 @@
     "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "concurrently": "^9.1.2",
     "@eslint/js": "^9.36.0",
     "@types/node": "^24.6.0",
     "@types/react": "^19.1.16",

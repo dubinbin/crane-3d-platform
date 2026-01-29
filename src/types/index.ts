@@ -15,6 +15,7 @@ export interface CraneInfo {
     };
     radius: number;
     height: number;
+    originalHeight: number;
     /** 吊钩高度 */
     currentHookHeight?: number;
     /** 小车距离 对于动臂式塔吊来说，是吊钩到塔身的距离 */
@@ -48,9 +49,20 @@ export interface CraneInfo {
 
     /** 吊钩距离地面的高度 */
     currentHeightDistanceFromGround?: number;
+
+
+    /** 吊绳长度百分比 */
+    ropePercent?: number;
 }
 
 export enum OnlineStatus {  
     ONLINE = "online",
     OFFLINE = "offline",
+}
+
+
+export interface Point3D {
+    x: number;
+    y: number;
+    z: number;
 }
