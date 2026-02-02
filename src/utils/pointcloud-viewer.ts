@@ -8,14 +8,13 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { PCDLoader } from 'three/examples/jsm/loaders/PCDLoader.js';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { PCDParser } from './pcd-parser';
 import { FileUtils } from './file-util';
 import { CraneManager, type CraneUserData } from './crane-manager';
-import { EventBus, EventName } from './event';
 import { useStore } from '../store';
-import { fetchJson } from './json-parser';
 import { OnlineStatus, type CraneInfo, type CraneType } from '../types';
+import { config } from '../assets/resource/config';
+import pcdFile from '../assets/resource/pcd/1_clean_1.pcd?url';
 
 interface ViewerOptions {
   width?: number;
@@ -53,8 +52,6 @@ export class PointCloudViewer {
   private predictedPathPoints: THREE.Vector3[] = [];
   private fbxLoader: FBXLoader;
   private pcdLoader: PCDLoader;
-  private gltfLoader: GLTFLoader;
-  private locationPinTemplate: THREE.Object3D | null = null;
   private craneManager: CraneManager;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
@@ -103,7 +100,6 @@ export class PointCloudViewer {
     
     this.fbxLoader = new FBXLoader();
     this.pcdLoader = new PCDLoader();
-    this.gltfLoader = new GLTFLoader();
 
     // 加载背景图片
     const textureLoader = new THREE.TextureLoader();
@@ -129,21 +125,6 @@ export class PointCloudViewer {
         // 如果加载失败，使用默认背景色
         this.scene.background = new THREE.Color(this.options.backgroundColor);
       }
-    );
-
-    // 预加载位置标记模型（location pin）
-    this.gltfLoader.load(
-      new URL('../assets/location-pin.glb', import.meta.url).href,
-      (gltf) => {
-        this.locationPinTemplate = gltf.scene;
-        // 可选：统一缩放 / 调整朝向
-        this.locationPinTemplate.scale.set(0.2, 0.2, 0.2);
-        this.locationPinTemplate.rotation.x =  Math.PI / 2;
-      },
-      undefined,
-      (error) => {
-        console.error('加载 location-pin.glb 失败:', error);
-      },
     );
 
     // 创建渲染器
@@ -321,22 +302,7 @@ export class PointCloudViewer {
       if (cranes.includes(clickedCrane)) {
         const craneId = (clickedCrane.userData as unknown as CraneUserData).id;
         
-        // 从 store 中获取塔吊信息
-        const craneInfo = useStore.getState().cranes.find(c => c.id === craneId);
         setCurrentOperationCraneId(craneId);
-        
-        if (craneInfo) {
-          console.log('点击塔吊:', craneInfo);
-          
-          // 发出事件
-          EventBus.emit(EventName.CRANE_CLICKED, {
-            crane: craneInfo,
-            screenPosition: {
-              x: clientX,
-              y: clientY
-            }
-          });
-        }
       }
     }
   }
@@ -691,28 +657,20 @@ export class PointCloudViewer {
   }
 
   /**
-   * 从服务器获取并处理文件
-   * @param url - 文件URL
+   * 从本地资源加载并处理PCD文件
+   * @param _url - 文件URL（已废弃，保留用于兼容）
    * @param fileName - 文件名
    */
-  async fetchFileAndHandle(url: string, fileName: string): Promise<void> {
-    this.showLoading(`Loading ${fileName} from server...`);
+  async fetchFileAndHandle(_url: string, fileName: string): Promise<void> {
+    this.showLoading(`Loading ${fileName}...`);
     try {
-      const fileObj = await FileUtils.fetchFileFromServer(url, fileName);
-      
-      if (fileObj) {
-        try {
-          this.showLoading(`Loading ${fileName}...`);
-          window.currentFileName = fileObj.name;
-          const pointData = await this.loadPCD(fileObj);
-          this.updateFileInfo(pointData, fileObj.name);
-        } catch (error) {
-          alert('加载PCD文件失败: ' + (error as Error).message);
-          console.error(error);
-        }
-      }
+      // 直接从本地资源加载PCD文件
+      window.currentFileName = fileName;
+      const pointData = await this.loadPCD(pcdFile);
+      this.updateFileInfo(pointData, fileName);
     } catch (error) {
-      alert(`从服务器获取文件失败: ${(error as Error).message}`);
+      alert('加载PCD文件失败: ' + (error as Error).message);
+      console.error(error);
     } finally {
       this.hideLoading();
     }
@@ -721,11 +679,11 @@ export class PointCloudViewer {
   async fetchJsonAndHandle(): Promise<void> {
     try {
       const { addCrane } = useStore.getState();
-      const jsonData = await fetchJson();
+      const pcd_file_name = config.pcd_file_name;
+      const craneList = config.craneList;
       // 从本地服务器获取 PCD 文件
-      await this.fetchFileAndHandle(`/pcd/${jsonData.pcd_file_name}.pcd`, `${jsonData.pcd_file_name}.pcd`);
-      if (jsonData) {
-        const {craneList} = jsonData;
+      await this.fetchFileAndHandle(`/pcd/${pcd_file_name}.pcd`, `${pcd_file_name}.pcd`);
+      if (craneList.length > 0) {
         craneList.forEach((crane: { crane_id: string; crane_name: string; crane_type: CraneType; crane_position: { x: number; y: number; z: number }; crane_height: number; crane_radius: number; crane_rope_percent: number }) => {
           const craneInfo: CraneInfo = {
             id: crane.crane_id,
@@ -748,7 +706,7 @@ export class PointCloudViewer {
           addCrane(craneInfo);
         });
       } else {
-        console.error('JSON文件加载失败:', jsonData);
+        console.error('JSON文件加载失败: craneList is empty');
       }
     } catch (error) {
       console.error('加载JSON文件失败:', error);

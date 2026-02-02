@@ -15,7 +15,25 @@ declare global {
     
     /** 当前文件名 */
     currentFileName?: string;
+    
+    /** 通过 Flutter JS channel 接收服务器消息的处理函数 */
+    handleServerMsg?: (data: unknown) => Promise<void> | void;
+    
+    /** 通过 Flutter JS channel 接收服务器 WebSocket 消息的处理函数（用于路径列表等） */
+    handleServerWebsocketMsg?: (data: unknown) => Promise<void> | void;
   }
+}
+
+// 声明 FBX 文件模块类型
+declare module '*.fbx?url' {
+  const src: string;
+  export default src;
+}
+
+// 声明 PCD 文件模块类型
+declare module '*.pcd?url' {
+  const src: string;
+  export default src;
 }
 
 // 确保这个文件被视为模块

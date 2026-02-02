@@ -4,7 +4,6 @@ import Three3DView from "./components/three-3d-view";
 // import InfoPanel from "./components/info-panel";
 // import LeftPanelArea from "./components/left-panel-area";
 import AlertModal from "./components/alert-model";
-import CraneInfoTooltip from "./components/crane-info-tooltip";
 import { WebSocketAPIComponent } from "./components/webSocket-api-component";
 import { PointLiftTrailController } from "./components/point-lift-trail-controller";
 // import LeftPanelArea from "./components/left-panel-area";
@@ -84,14 +83,10 @@ function App() {
 
   return (
     <>
-      {/* <Header /> */}
       <WebSocketAPIComponent />
       <PointLiftTrailController />
       <Three3DView />
-      {/* <LeftPanelArea /> */}
-      {/* <InfoPanel /> */}
       <AlertModal />
-      <CraneInfoTooltip />
     </>
   );
 }

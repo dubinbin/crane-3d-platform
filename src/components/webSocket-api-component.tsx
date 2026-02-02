@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { webSocketService } from "../services/websocket";
 import { Deserialize, type Message } from "../utils/deserialize";
 import { SYSTEM_INFO_TYPE_MAP, WEBSOCKET_RESPONSE_CODE_MAP } from "../constants";
 import { useStore } from "../store";
@@ -52,16 +51,11 @@ export const WebSocketAPIComponent = () => {
     updateCraneCarDistanceText,
   };
 
-  // 只在组件挂载时连接一次 WebSocket
+  // 在组件挂载时设置 Flutter JS channel 消息处理
   useEffect(() => {
-    // 先连接websocket
-    webSocketService.connect();
+    const FRAME_LEN = 40; // 与后端 serializeMessage 中的 byteNumber 保持一致
 
-    // 定义事件处理函数
-    const handleConnect = () => {
-      console.log("Socket connected!");
-    };
-
+    // 将数据转换为 Uint8Array
     const toUint8Array = async (data: unknown): Promise<Uint8Array | null> => {
       if (data instanceof Uint8Array) return data;
       if (data instanceof ArrayBuffer) return new Uint8Array(data);
@@ -82,8 +76,7 @@ export const WebSocketAPIComponent = () => {
       return null;
     };
 
-    const FRAME_LEN = 40; // 与后端 serializeMessage 中的 byteNumber 保持一致
-
+    // 处理从 Flutter JS channel 接收的消息
     const handleServerMsg = async (data: unknown) => {
       const buffer = await toUint8Array(data);
 
@@ -95,7 +88,7 @@ export const WebSocketAPIComponent = () => {
       // TCP chunk 可能一次带多帧（40 bytes/帧），这里按帧解包
       const frames = Math.floor(buffer.length / FRAME_LEN);
       if (frames === 0) {
-        console.warn(`WS got ${buffer.length} bytes (<${FRAME_LEN}), skip`, buffer);
+        console.warn(`Got ${buffer.length} bytes (<${FRAME_LEN}), skip`, buffer);
         return;
       }
 
@@ -165,10 +158,6 @@ export const WebSocketAPIComponent = () => {
       }
     };
 
-    const handleDisconnect = () => {
-      console.log("Socket disconnected");
-    };
-
     // 定义 sendToDifferentCrane 函数，使用 ref 访问最新的值
     const sendToDifferentCrane = (eventData: number[], craneId: number) => {
       const matchItem = cranelistRef.current.find((c) => c.id === craneId.toString());
@@ -224,18 +213,18 @@ export const WebSocketAPIComponent = () => {
       }
     };
 
-    // 使用WebSocketService的方法来监听事件
-    webSocketService.on("connect", handleConnect);
-    webSocketService.on("server-msg", handleServerMsg);
-    webSocketService.on("disconnect", handleDisconnect);
-    webSocketService.on("server-websocket-msg", handleServerWebsocketMsg);
+    // 将消息处理函数挂载到 window 对象，供 Flutter JS channel 调用
+    window.handleServerMsg = handleServerMsg;
+    window.handleServerWebsocketMsg = handleServerWebsocketMsg;
 
     // 清理函数
     return () => {
-      webSocketService.off("connect", handleConnect);
-      webSocketService.off("server-msg", handleServerMsg);
-      webSocketService.off("disconnect", handleDisconnect);
-      webSocketService.off("server-websocket-msg", handleServerWebsocketMsg);
+      if (window.handleServerMsg === handleServerMsg) {
+        delete window.handleServerMsg;
+      }
+      if (window.handleServerWebsocketMsg === handleServerWebsocketMsg) {
+        delete window.handleServerWebsocketMsg;
+      }
     };
   }, [setCurrentMovingCraneId, setIsInPointLift]); // 依赖 zustand actions（稳定引用）
 

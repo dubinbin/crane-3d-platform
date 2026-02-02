@@ -2,131 +2,34 @@ import express from "express";
 import { Server as SocketIOServer } from "socket.io";
 import http from "http";
 import net from "net";
-import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import fs from "fs";
 
 const app = express();
 
-// 获取当前文件的目录路径 (ES6 模块中的 __dirname 替代方案)
 const __filename = fileURLToPath(import.meta.url);
+
 const __dirname = path.dirname(__filename);
 // 创建 HTTP 服务器
 const server = http.createServer(app);
 
 const host = "localhost";
 const serverPort = 9999;
-const WS_PUSH_INTERVAL = 33; // 30fps（你可以改成 16 = 60fps）
 
-
-// =======================
-// Ring Buffer（只保留最新一帧）
-// =======================
-let latestTcpBuffer = null;
-let latestTcpTimestamp = 0;
-
-// 统计用
-let tcpPacketCount = 0;
-let wsSendCount = 0;
-let wsSendInterval = null;
-
-let jsonData = {
-  tcp_server_host: "localhost",
-  tcp_server_port: 9999,
-};
-
-// 读取配置文件的函数（每次调用都重新读取，避免缓存）
-function loadConfigFromFile() {
-  const defaultConfig = {
-    tcp_server_host: "localhost",
-    tcp_server_port: 9999,
-  };
-  
-  const jsonFilePath = path.join(__dirname, '/public/json/index.json');
-  try {
-    if (fs.existsSync(jsonFilePath)) {
-      // 每次读取都重新读取文件，不使用缓存
-      const jsonFileData = JSON.parse(fs.readFileSync(jsonFilePath, 'utf8'));
-      return {
-        ...defaultConfig,
-        ...jsonFileData,
-      };
-    } else {
-      console.warn('⚠️  配置文件不存在，使用默认配置:', jsonFilePath);
-      return defaultConfig;
-    }
-  } catch (error) {
-    console.error('❌ 读取配置文件失败:', error.message);
-    return defaultConfig;
-  }
+// 通过 HTTP 接口获取最新配置（避免文件系统缓存）
+const config = {
+    "tcp_server_host": "192.168.90.26",
+    "tcp_server_port": 12345,
 }
 
-// 初始化时读取一次配置
-jsonData = loadConfigFromFile();
-console.log('✅ 成功加载配置文件');
-
 // TCP 服务器配置（会在服务器启动后通过 HTTP 接口重新获取最新配置）
-let TCP_HOST = process.env.TCP_HOST || 
-  (jsonData.tcp_server_host === 'localhost' ? 'host.docker.internal' : jsonData.tcp_server_host);
-let TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : jsonData.tcp_server_port;
+let TCP_HOST = config.tcp_server_host;
+let TCP_PORT = config.tcp_server_port;
 
-// 配置CORS
-app.use(cors({
-  origin: [
-    `http://${host}:${serverPort}`,
-  ],
-  methods: ["GET", "POST"],
-  credentials: true
-}));
-
-// 优化静态文件服务性能
-// 添加 ETag 和 Last-Modified 支持，减少不必要的文件读取
-const staticOptions = {
-  etag: true, // 启用 ETag 缓存
-  lastModified: true, // 启用 Last-Modified
-  maxAge: 3600000, // 1小时缓存（对于静态资源）
-  immutable: true, // 标记为不可变资源（适合带hash的文件名）
-  setHeaders: (res, path) => {
-    // 对于大文件，设置合适的缓存策略
-    if (path.endsWith('.pcd') || path.endsWith('.fbx') || path.endsWith('.glb')) {
-      res.setHeader('Cache-Control', 'public, max-age=86400'); // 24小时缓存
-    }
-  }
-};
-
-// 【重要】动态资源路由必须在 dist 静态文件之前配置
-// 这样可以确保动态资源不会被 dist 目录中的旧文件覆盖
-
-// API 接口：获取配置文件（每次请求都重新读取，避免缓存）
-app.get('/api/config', (req, res) => {
-  const config = loadConfigFromFile();
-  // 设置无缓存响应头
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Content-Type', 'application/json');
-  res.json(config);
-});
-
-// 托管 JSON 文件目录（动态配置文件，优先级最高）
-// JSON 文件较小，不需要特殊优化
-app.use('/json', express.static(path.join(__dirname, '/public/json'), {
-  etag: false, // JSON 配置文件不使用缓存
-  lastModified: false,
-  maxAge: 0
-}));
-
-// 托管 PCD 文件目录（点云数据，可能很大）
-app.use('/pcd', express.static(path.join(__dirname, '/public/pcd'), staticOptions));
-
-// 托管模型文件目录（3D模型，可能很大）
-app.use('/model', express.static(path.join(__dirname, '/public/model'), staticOptions));
 
 // 托管静态文件 - 服务 dist 文件夹（打包的前端资源）
 // 使用优化配置，这些文件通常不会变化
 app.use(express.static(path.join(__dirname, '/dist'), {
-  ...staticOptions,
   maxAge: 86400000, // 24小时缓存（前端资源通常带hash，可以长期缓存）
 }));
 
@@ -153,30 +56,11 @@ let tcpConnected = false;
 let reconnectTimer = null;
 let isShuttingDown = false;
 let healthCheckTimer = null; // 健康检查定时器
-let lastDataTime = null; // 最后一次收到数据的时间
 let reconnectCount = 0; // 重连次数
 let isReconnecting = false; // 是否正在重连
 let heartbeatCount = 0; // 心跳计数器
 let heartbeatTimer = null; // 心跳定时器
-
-// 通过 HTTP 接口获取最新配置（避免文件系统缓存）
-async function fetchConfigFromAPI() {
-  try {
-    const response = await fetch(`http://${host}:${serverPort}/api/config`);
-    if (response.ok) {
-      const config = await response.json();
-      console.log('🔍 获取到的配置:', JSON.stringify(config, null, 2));
-      console.log('✅ 通过 API 获取最新配置');
-      return config;
-    } else {
-      console.warn('⚠️  API 获取配置失败，使用已加载的配置');
-      return jsonData;
-    }
-  } catch (error) {
-    console.warn('⚠️  API 获取配置失败:', error.message, '，使用已加载的配置');
-    return jsonData;
-  }
-}
+let lastDataTime = null; // 最后一次收到数据的时间
 
 // 消息序列化函数（对应Flutter的Message.serialize）
 function serializeMessage(userID, timeStamp, type, valueArray1, valueArray2) {
@@ -224,28 +108,6 @@ function clearHeartbeat() {
 }
 
 
-function startWsSendInterval() {
-  wsSendInterval = setInterval(() => {
-    if (!latestTcpBuffer) return;
-  
-    const clientCount = io.sockets.sockets.size;
-    if (clientCount === 0) return;
-  
-    wsSendCount++;
-  
-    io.volatile.emit('server-msg', latestTcpBuffer);
-  
-    // 调试日志（低频）
-    if (wsSendCount % 60 === 0) {
-      const delay = Date.now() - latestTcpTimestamp;
-      console.log(
-        `📡 WS push: clients=${clientCount}, delay=${delay}ms, sent=${wsSendCount}`
-      );
-    }
-  }, WS_PUSH_INTERVAL);
-}
-
-
 // 连接到 TCP 服务器
 function connectToTcpServer() {
   // 如果正在重连，避免重复连接
@@ -282,18 +144,8 @@ function connectToTcpServer() {
 
   tcpClient.on('data', (chunk) => {
     io.volatile.emit('server-msg', chunk);
-    // tcpPacketCount++;
-    // lastDataTime = Date.now();
-  
-    // latestTcpBuffer = chunk;
-    // latestTcpTimestamp = lastDataTime;
-  
-    // if (tcpPacketCount % 100 === 0) {
-    //   console.log(
-    //     `📥 TCP recv: ${chunk.length} bytes, total=${tcpPacketCount}`
-    //   );
-    // }
   });
+
   // 连接成功回调
   tcpClient.connect(TCP_PORT, TCP_HOST, () => {
     tcpConnected = true;
@@ -380,10 +232,9 @@ function connectToTcpServer() {
     // 强制 flowing（关键）
     tcpClient.resume();
   
-    startWsSendInterval();
-    
     // 启动心跳定时器（每5秒发送一次心跳）
     clearHeartbeat();
+
     heartbeatTimer = setInterval(() => {
       heartbeat();
     }, 1500);
@@ -396,15 +247,6 @@ function connectToTcpServer() {
   tcpClient.on('pause', () => {
     console.warn('⏸️  TCP 流已暂停（可能因为缓冲区满）');
   });
-}
-
-// 更新 TCP 配置
-function updateTcpConfig(config) {
-  jsonData = config;
-  TCP_HOST = process.env.TCP_HOST || 
-    (config.tcp_server_host === 'localhost' ? 'host.docker.internal' : config.tcp_server_host);
-  TCP_PORT = process.env.TCP_PORT ? parseInt(process.env.TCP_PORT) : config.tcp_server_port;
-  console.log(`📝 更新 TCP 配置: ${TCP_HOST}:${TCP_PORT}`);
 }
 
 // Socket.IO 连接处理
@@ -449,17 +291,12 @@ app.get(/^\/(?!(socket\.io|pcd|model|json)\/).*/, (req, res) => {
 });
 
 // 启动服务器
-async function start() {
+function start() {
   try {
-    server.listen(serverPort, '0.0.0.0', async () => {
+    server.listen(serverPort, '0.0.0.0',  () => {
       console.log(`🚀 WebSocket 服务器运行在端口 ${serverPort} (所有网络接口)`);
       console.log(`📡 Web 界面访问: http://${host}:${serverPort}`);
-      
-      // 服务器启动后，通过 HTTP 接口获取最新配置（避免文件系统缓存）
-      const latestConfig = await fetchConfigFromAPI();
-      updateTcpConfig(latestConfig);
-      
-      // 使用最新配置连接 TCP 服务器
+    
       connectToTcpServer();
 
       connectToWebSocketServer();
@@ -480,9 +317,6 @@ function connectToWebSocketServer() {
     wsClient = null;
   }
 
-  let TCP_HOST = process.env.TCP_HOST || 
-    (jsonData.tcp_server_host === 'localhost' ? 'host.docker.internal' : jsonData.tcp_server_host);
-  
   try {
     wsClient = new WebSocket(`ws://${TCP_HOST}:9002/`);
     
