@@ -355,11 +355,6 @@ export class CraneManager {
       const initialRopeLength = craneData.currentRopeLength || 3.0;
       const ropeSystem = this.createRope(hooksHeader, initialRopeLength);
 
-      // 创建名称标签
-      const label = this.createLabel(craneData.name);
-      // 将标签放置在塔吊上方
-      label.position.set(0, 2000, 0); // Z轴向上偏移3个单位
-      newCrane.add(label);
 
       const userData: CraneUserData = { 
         radius: craneData.radius,
@@ -373,7 +368,7 @@ export class CraneManager {
         rotationAngle: craneData.currentRotationAngle || 0, // 初始旋转角度（水平）
         armPitchAngle: craneData.currentArmPitchAngle || 0, // 初始俯仰角度（上下）
         ropeLength: craneData.currentRopeLength || 3.0, // 初始吊绳长度
-        label: label,
+        label: null,
         onlineStatus: craneData.onlineStatus,
       };
       newCrane.userData = userData;  
