@@ -14,6 +14,7 @@ export interface CraneUserData {
   radius: number;
   id: string;
   name: string;
+  type: CraneType;
   topController: THREE.Object3D | null;
   neckController: THREE.Object3D | null;
   hooksHeader: THREE.Object3D | null;
@@ -239,73 +240,227 @@ export class CraneManager {
   }
 
   /**
-   * 调整塔身高度（从底部延伸）并重新定位顶部组件
+   * 调整塔身高度：根据 targetHeight 按 tower-joint 标准节堆叠，并与 tower-footer / hooks-angle 做接缝对齐。
+   *
+   * 你当前的 Blender 拆分约定：tower-joint 只有 1 节，对应 1m
+   * 因此：targetHeight=10 => 堆叠 10 节 tower-joint
    * @param crane - 塔吊对象
    * @param targetHeight - 目标高度（米）
    */
-  private adjustTowerHeight(crane: THREE.Object3D, targetHeight: number): void {
-    let towerBase: THREE.Object3D | null = null;
-    const topComponents: THREE.Object3D[] = []; // 存储需要重新定位的顶部组件
+  private adjustTowerHeight(crane: THREE.Object3D, targetHeight: number, craneData: CraneInfo): void {
+    // 新模型：你已在 Blender 把 tower-base 删除，并提取了标准节 tower-joint
+    // 逻辑：按 targetHeight 计算需要多少个 tower-joint -> 堆叠到 tower-footer -> 最后把 hooks-angle 接到顶部最后一节
+
+    const towerFooter = this.findFirstDescendantByName(crane, 'tower-footer');
+    const joints = this.findAllDescendantsByName(crane, 'tower-joint');
+    const hooksAngleNode = this.findFirstDescendantByName(crane, 'hooks-angle');
+
+    if (!towerFooter) {
+      console.warn('未找到 tower-footer，无法调整塔身高度');
+      return;
+    }
+    if (!joints.length) {
+      console.warn('未找到 tower-joint，无法调整塔身高度');
+      return;
+    }
+
+    const jointTemplate = joints[0];
+
+
+    // 约定：Blender 里 tower-joint 只有 1 节，且该节对应高度单位为 1m
+    // 因此：targetHeight=10 => 堆叠 10 节 tower-joint
+
+    crane.updateMatrixWorld(true);
+
+    const footerBox = new THREE.Box3().setFromObject(towerFooter);
+    const jointBox = new THREE.Box3().setFromObject(jointTemplate);
+    // setupCraneTemplate 里对模板做了 rotation.x = Math.PI / 2，
+    // 因此“塔身竖直方向”更可能对应世界 Z，而不是世界 Y。
+    const jointHeightWorld = jointBox.max.z - jointBox.min.z;
+
+    const desiredJointCount = Math.max(1, Math.round(targetHeight));
+
+    // 仅需要缩放（方向/位置用世界姿态来重建堆叠）
+    const jointTemplateScale = jointTemplate.scale.clone();
+    // 用世界坐标存储第 1 节的起始位姿，后续把标准节堆叠成一个“整体组”
+    const jointTemplateWorldPos = jointTemplate.getWorldPosition(new THREE.Vector3());
+    const jointTemplateWorldQuat = jointTemplate.getWorldQuaternion(new THREE.Quaternion());
     
-    // 查找 tower-base 和其他顶部组件
-    crane.children.forEach((child) => {
-      if (child.name === 'tower-base') {
-        towerBase = child as THREE.Object3D;
-      } else {
-        // 其他所有直接子组件都是顶部组件
-        topComponents.push(child as THREE.Object3D);
+
+    // 如果 hooks-angle 本身在某个 tower-joint 子树里，那么下面删除 joints 时会把 hooks-angle 一起删掉，
+    // 导致“加了位移但 world 坐标不变”。这种情况下：先把 hooks-angle 从 joints 子树里解挂到 crane 根，
+    // 并保留其世界变换，重建完标准节后再做塔顶接缝。
+    if (hooksAngleNode) {
+      const hooksInsideAnyJoint = joints.some((j) => this.isDescendantOf(j, hooksAngleNode));
+      if (hooksInsideAnyJoint) {
+        crane.updateMatrixWorld(true);
+        const hooksWorldPos = new THREE.Vector3();
+        const hooksWorldQuat = new THREE.Quaternion();
+        hooksAngleNode.getWorldPosition(hooksWorldPos);
+        hooksAngleNode.getWorldQuaternion(hooksWorldQuat);
+
+        // 先换父级
+        crane.add(hooksAngleNode);
+
+        // 再把 local transform 设回“保持原世界姿态”
+        const invCraneWorldQuat = crane.getWorldQuaternion(new THREE.Quaternion()).invert();
+        hooksAngleNode.quaternion.copy(invCraneWorldQuat.multiply(hooksWorldQuat));
+        hooksAngleNode.position.copy(crane.worldToLocal(hooksWorldPos));
+
+        hooksAngleNode.updateMatrixWorld(true);
+        crane.updateMatrixWorld(true);
+        console.log('hooks-angle 被解挂以避免与 tower-joint 一起删除');
       }
-    });
-
-    if (!towerBase) {
-      console.warn('未找到 tower-base，无法调整塔身高度');
-      return;
     }
 
-    const tower = towerBase as THREE.Object3D;
-
-    // 计算 tower-base 的原始高度（使用 Y 轴，因为模型旋转后 Y 轴是高度方向）
-    const originalBox = new THREE.Box3().setFromObject(tower);
-    const originalHeight = originalBox.max.y - originalBox.min.y;
-    const originalTopY = originalBox.max.y; // 记录原始顶部位置
-    
-    console.log(`tower-base 原始信息: 高度=${originalHeight}, 顶部Y=${originalTopY}, 边界=[${originalBox.min.y}, ${originalBox.max.y}]`);
-    console.log(`找到 ${topComponents.length} 个顶部组件:`, topComponents.map(c => c.name));
-    
-    if (originalHeight === 0) {
-      console.warn('tower-base 高度为0，无法计算缩放比例');
-      return;
-    }
-
-    // 基准高度（可以根据实际模型调整）
-    const baseHeight = 10; // 假设模型默认高度为10米
-    
-    // 计算缩放比例
-    const scaleRatio = targetHeight / baseHeight;
-    
-    console.log(`调整塔身高度: 目标=${targetHeight}米, 基准=${baseHeight}米, 缩放比例=${scaleRatio}`);
-
-    // 在 Y 轴（高度方向）应用缩放
-    // 因为锚点在基座，所以直接缩放即可，不需要调整 tower-base 的位置
-    tower.scale.y = scaleRatio;
-
-    // 计算拉伸后的新顶部位置
-    const newBox = new THREE.Box3().setFromObject(tower);
-    const newTopY = newBox.max.y;
-    const topOffsetY = newTopY - originalTopY; // 顶部位置的变化量
-
-    console.log(`tower-base 缩放完成: scale.y=${scaleRatio}, 原顶部Y=${originalTopY}, 新顶部Y=${newTopY}, 顶部偏移=${topOffsetY}`);
-
-    // 重新定位所有顶部组件，让它们"安装"在新的塔顶上
-    topComponents.forEach((component) => {
-      const originalY = component.position.y + ((targetHeight - baseHeight)  * 180);
-      component.position.y = originalY + topOffsetY;
-      console.log(`调整组件 ${component.name} 位置: ${originalY.toFixed(2)} -> ${component.position.y.toFixed(2)} (偏移 ${topOffsetY.toFixed(2)})`);
+    // 删除旧的 tower-joint（包含 template 本体）
+    joints.forEach((j) => {
+      if (j.parent) j.parent.remove(j);
     });
 
-    console.log(`塔身高度调整完成: 原始=${baseHeight}米, 新高度=${targetHeight}米, 缩放比例=${scaleRatio}`);
+    // 先把 n 节标准节作为一个整体堆叠
+    const stackGroup = new THREE.Group();
+    stackGroup.name = "tower-joint-stack";
+    crane.add(stackGroup);
+    crane.updateMatrixWorld(true);
+
+    const invStackWorldQuat = stackGroup
+      .getWorldQuaternion(new THREE.Quaternion())
+      .invert();
+
+    for (let i = 0; i < desiredJointCount; i++) {
+      const joint = jointTemplate.clone(true);
+      joint.visible = true;
+      joint.scale.copy(jointTemplateScale);
+
+      const jointWorldPos = jointTemplateWorldPos
+        .clone()
+        .add(new THREE.Vector3(0, 0, i * jointHeightWorld));
+      joint.position.copy(stackGroup.worldToLocal(jointWorldPos));
+      joint.quaternion.copy(invStackWorldQuat.multiply(jointTemplateWorldQuat));
+      stackGroup.add(joint);
+    }
+
+    crane.updateMatrixWorld(true);
+
+    // 再连接 tower-footer：stackGroup 底部对齐 footer 顶部
+    const stackBoxAfterStack = new THREE.Box3().setFromObject(stackGroup);
+    const deltaZToFooter = footerBox.max.z - stackBoxAfterStack.min.z;
+    const deltaLocalStack = this.worldVectorToParentLocal(
+      new THREE.Vector3(0, 0, deltaZToFooter),
+      crane,
+    );
+    stackGroup.position.add(deltaLocalStack);
+    console.log(
+      `连接footer: stackBox.min.z=${stackBoxAfterStack.min.z.toFixed(4)} footerTopZ=${footerBox.max.z.toFixed(
+        4,
+      )} deltaZToFooter=${deltaZToFooter.toFixed(4)} deltaLocalStack=(${deltaLocalStack.x.toFixed(
+        4,
+      )},${deltaLocalStack.y.toFixed(4)},${deltaLocalStack.z.toFixed(4)})`,
+    );
+    crane.updateMatrixWorld(true);
+
+    // 接缝②：让 hooks-angle 与最后一节 joint 的顶部贴合
+    if (hooksAngleNode) {
+      // 如果重建过程中 hooks-angle 丢失了父级，先强制挂回 crane，避免坐标系失配
+      if (!hooksAngleNode.parent) {
+        crane.add(hooksAngleNode);
+      }
+      hooksAngleNode.updateMatrixWorld(true);
+      crane.updateMatrixWorld(true);
+
+      // 用 stackGroup 的顶部对齐 hooks-angle 底部
+      const stackBoxAfterFooter = new THREE.Box3().setFromObject(stackGroup);
+      const hooksBox = new THREE.Box3().setFromObject(hooksAngleNode);
+      console.log(crane);
+      const differentCraneTypeGap = craneData.type === CraneType.BOOM ? 0.08 : 0;
+      const gapZTop = stackBoxAfterFooter.max.z - hooksBox.min.z  - differentCraneTypeGap;
+      console.log(
+        `连接hooks: stackTopZ=${stackBoxAfterFooter.max.z.toFixed(4)} hooksBox.min.z=${hooksBox.min.z.toFixed(
+          4,
+        )} gapZTop=${gapZTop.toFixed(4)}`,
+      );
+
+      const hooksParent = hooksAngleNode.parent ?? crane;
+      const hooksBefore = new THREE.Vector3();
+      hooksAngleNode.getWorldPosition(hooksBefore);
+
+      // 关键：用 worldToLocal 直接设置 hooks-angle 的 world->local 位置，
+      // 避免通过 quaternion 转换时忽略 parent 的 scale 导致“看起来没动”的问题。
+      const desiredHooksWorldPos = hooksBefore.clone().add(new THREE.Vector3(0, 0, gapZTop));
+      hooksAngleNode.position.copy(hooksParent.worldToLocal(desiredHooksWorldPos));
+
+      const hooksInHierarchyBefore = this.isDescendantOf(crane, hooksAngleNode);
+      console.log(
+        `hooks-angle hierarchy: hooksInHierarchyBefore=${hooksInHierarchyBefore} hooksParentNow=${(hooksAngleNode.parent?.name || '(null)')}`,
+      );
+      hooksAngleNode.updateMatrixWorld(true);
+      crane.updateMatrixWorld(true);
+      const hooksAfter = new THREE.Vector3();
+      hooksAngleNode.getWorldPosition(hooksAfter);
+      console.log(
+        `接缝② tower-joint(last)→hooks-angle(沿Z): gapZTop=${gapZTop.toFixed(4)} hooksParent=${hooksParent.name || '(unnamed)'} hooksWorldBefore=(${hooksBefore.x.toFixed(
+          2,
+        )},${hooksBefore.y.toFixed(2)},${hooksBefore.z.toFixed(2)}) hooksWorldAfter=(${hooksAfter.x.toFixed(2)},${hooksAfter.y.toFixed(
+          2,
+        )},${hooksAfter.z.toFixed(2)})`,
+      );
+    } else {
+      console.warn('未找到 hooks-angle，无法做塔顶接缝（仅完成标准节堆叠和 tower-footer 接缝）');
+    }
+
+    crane.updateMatrixWorld(true);
   }
 
+  /**
+   * 深度查找所有匹配 name 的节点（包括 root 自身）。
+   */
+  private findAllDescendantsByName(root: THREE.Object3D, name: string): THREE.Object3D[] {
+    const res: THREE.Object3D[] = [];
+    root.traverse((child) => {
+      if (child.name === name) {
+        res.push(child as THREE.Object3D);
+      }
+    });
+    return res;
+  }
+
+  /**
+   * 世界坐标系里的平移向量 worldVec，换算成 parent 局部空间中的平移向量（用于改子节点 position）
+   */
+  private worldVectorToParentLocal(worldVec: THREE.Vector3, parent: THREE.Object3D): THREE.Vector3 {
+    const v = worldVec.clone();
+    const invQ = new THREE.Quaternion();
+    parent.getWorldQuaternion(invQ);
+    invQ.invert();
+    v.applyQuaternion(invQ);
+    return v;
+  }
+
+  /** 深度优先查找第一个匹配 name 的节点（含 root 自身） */
+  private findFirstDescendantByName(root: THREE.Object3D, name: string): THREE.Object3D | null {
+    if (root.name === name) {
+      return root;
+    }
+    for (const child of root.children) {
+      const hit = this.findFirstDescendantByName(child, name);
+      if (hit) {
+        return hit;
+      }
+    }
+    return null;
+  }
+
+  private isDescendantOf(ancestor: THREE.Object3D, node: THREE.Object3D): boolean {
+    let p: THREE.Object3D | null = node.parent;
+    while (p) {
+      if (p === ancestor) {
+        return true;
+      }
+      p = p.parent;
+    }
+    return false;
+  }
   /**
    * 添加塔吊
    * @param craneData - 塔吊数据
@@ -335,7 +490,7 @@ export class CraneManager {
 
     // 根据输入的高度调整塔身
     if (craneData.height && craneData.height > 0) {
-      this.adjustTowerHeight(newCrane, craneData.height);
+      this.adjustTowerHeight(newCrane, craneData.height, craneData);
     }
 
     if (craneData.type === CraneType.FLOOR) {
@@ -343,7 +498,7 @@ export class CraneManager {
       let hooksHeader: THREE.Object3D | null = null;
 
       newCrane.traverse((child) => {
-        if (child.name === 'main-arm') {
+        if (child.name === 'hooks-angle') {
           topController = child;
         }
         if (child.name === 'main-car') {
@@ -361,6 +516,7 @@ export class CraneManager {
         id: craneData.id, 
         name: craneData.name,
         topController: topController,
+        type: craneData.type,
         hooksHeader: hooksHeader,
         neckController: null,
         rope: ropeSystem ? ropeSystem.rope : null,
@@ -407,6 +563,7 @@ export class CraneManager {
         topController: topController,
         neckController: neckController,
         hooksHeader: hooksHeader,
+        type: craneData.type,
         rope: ropeSystem ? ropeSystem.rope : null,
         hook: ropeSystem ? ropeSystem.hook : null,
         rotationAngle: craneData.currentRotationAngle || 0, // 初始旋转角度（水平）
@@ -585,7 +742,7 @@ export class CraneManager {
     clampedDistance = Math.max(0, Math.min(20, clampedDistance)) + 3; // 限制范围0-100
 
     // 小车沿着吊臂的局部Z轴方向移动
-    // 由于main-car是main-arm的子对象，它会自动跟随main-arm的旋转
+    // 由于main-car是main-arm的子对象，它会自动跟随hooks的旋转
     // 当塔吊旋转时，小车的移动方向也会随之旋转，无需手动计算旋转角度
     userData.hooksHeader.position.y = -clampedDistance;
    

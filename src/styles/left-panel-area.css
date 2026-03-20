@@ -1,5 +1,4 @@
 .left-panel-area {
-    position: fixed;
     top: calc(25px * var(--scale, 1));
     left: calc(25px * var(--scale, 1));
     height: 100%;

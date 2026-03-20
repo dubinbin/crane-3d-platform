@@ -1,5 +1,4 @@
-import { useRef, useState, useEffect } from "react";
-import { PCDParser } from "../utils/pcd-parser";
+import { useRef, useState } from "react";
 import "../styles/pointCloud-helper-panel.css";
 import CraneControlPanel from "./crane-control-panel";
 import { ArrowsAltOutlined, ShrinkOutlined } from "@ant-design/icons";
@@ -7,45 +6,6 @@ import { ArrowsAltOutlined, ShrinkOutlined } from "@ant-design/icons";
 export default function PointCloudHelperPanel() {
   const controlPanelRef = useRef<HTMLDivElement>(null);
   const [iscollapsed, setIscollapsed] = useState(false);
-
-  // 从URL参数读取密度值，默认为 "0"（完整点云）
-  const getInitialDensity = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const densityParam = urlParams.get("density");
-    return densityParam || "0"; // 默认值为 "0" 表示完整点云
-  };
-
-  const getDensityLabel = (value: string) => {
-    const options: Record<string, string> = {
-      "25000": "快速",
-      "50000": "标准",
-      "200000": "增强",
-      "500000": "高清",
-      "0": "完整",
-    };
-    return options[value] || "完整";
-  };
-
-  const [densityValue, setDensityValue] = useState(() => {
-    const initialDensity = getInitialDensity();
-    return getDensityLabel(initialDensity);
-  });
-
-  const [selectedDensity, setSelectedDensity] = useState(getInitialDensity);
-
-  // 初始化时设置选择框的值
-  useEffect(() => {
-    const densitySelect = document.getElementById(
-      "point-density"
-    ) as HTMLSelectElement;
-
-    // if (controlPanelRef.current) {
-    //   controlPanelRef.current.style.visibility = "hidden";
-    // }
-    if (densitySelect) {
-      densitySelect.value = selectedDensity;
-    }
-  }, [selectedDensity]);
 
   const handlePanelToggle = () => {
     setIscollapsed(!iscollapsed);
@@ -55,38 +15,6 @@ export default function PointCloudHelperPanel() {
       if (controlPanel) controlPanel.classList.remove("collapsed");
     } else {
       if (controlPanel) controlPanel.classList.add("collapsed");
-    }
-  };
-
-  const bindPointDensityControl = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    const numValue = parseInt(value);
-    const options: Record<string, string> = {
-      "25000": "快速",
-      "50000": "标准",
-      "200000": "增强",
-      "500000": "高清",
-      "0": "完整",
-    };
-    setDensityValue(options[value] || "完整");
-    setSelectedDensity(value);
-
-    // 如果有当前加载的文件，重新解析
-    if (window.currentPCDData) {
-      console.log("重新解析点云，新密度:", numValue);
-      try {
-        const pointData = PCDParser.parsePCD(window.currentPCDData);
-        window?.viewer?.renderPointCloud(pointData);
-        window?.viewer?.updateFileInfo(pointData, window.currentFileName || "");
-      } catch (error) {
-        console.error("重新解析失败:", error);
-      }
-    }
-  };
-
-  const handleClosePanel = () => {
-    if (controlPanelRef.current) {
-      controlPanelRef.current.style.display = "none";
     }
   };
 
@@ -117,38 +45,7 @@ export default function PointCloudHelperPanel() {
           </h3>
         </div>
 
-        <button onClick={handleClosePanel}>关闭</button>
-
         <div className="control-content">
-          <div className="crane-control-panel">
-            <label className="panel-header">
-              <h4>点云密度</h4>
-              <span className="value-display" id="density-value">
-                {densityValue}
-              </span>
-            </label>
-            <select
-              id="point-density"
-              style={{
-                width: "100%",
-                padding: `calc(8px * var(--scale, 1))`,
-                background: "rgba(255, 255, 255, 0.2)",
-                color: "white",
-                border: `calc(1px * var(--scale, 1)) solid #666`,
-                borderRadius: `calc(6px * var(--scale, 1))`,
-                fontSize: `calc(14px * var(--scale, 1))`,
-              }}
-              value={selectedDensity}
-              onChange={bindPointDensityControl}
-            >
-              <option value="25000">快速预览 (2.5万点)</option>
-              <option value="50000">标准密度 (5万点)</option>
-              <option value="200000">增强密度 (20万点)</option>
-              <option value="500000">高清密度 (50万点)</option>
-              <option value="0">完整点云 (全部点)</option>
-            </select>
-          </div>
-
           <CraneControlPanel />
         </div>
       </div>

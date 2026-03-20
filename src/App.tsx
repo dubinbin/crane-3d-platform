@@ -3,14 +3,13 @@ import "./App.css";
 import Three3DView from "./components/three-3d-view";
 // import InfoPanel from "./components/info-panel";
 // import LeftPanelArea from "./components/left-panel-area";
-import AlertModal from "./components/alert-model";
+import AlertModal, { AlertModalManager } from "./components/alert-model";
 import { WebSocketAPIComponent } from "./components/webSocket-api-component";
 import { PointLiftTrailController } from "./components/point-lift-trail-controller";
-// import LeftPanelArea from "./components/left-panel-area";
-// import Header from "./components/header";
-// import InfoPanel from "./components/info-panel";
-// import Header from "./components/header";
-// import InfoPanel from "./components/info-panel";
+import LeftPanelArea from "./components/left-panel-area";
+import AddCraneDialog from "./components/add-crane-dialog";
+import { EventBus, EventName } from "./utils/event";
+
 /**
  * 主应用程序组件
  * 负责初始化应用程序和协调各个模块
@@ -30,13 +29,13 @@ function App() {
       const width = parseInt(widthParam, 10);
       document.documentElement.style.setProperty(
         "--viewer-width",
-        `${width}px`
+        `${width}px`,
       );
       // 计算宽度缩放比例
       const scaleX = width / defaultWidth;
       document.documentElement.style.setProperty(
         "--scale-x",
-        scaleX.toString()
+        scaleX.toString(),
       );
     } else {
       document.documentElement.style.setProperty("--viewer-width", "100vw");
@@ -47,13 +46,13 @@ function App() {
       const height = parseInt(heightParam, 10);
       document.documentElement.style.setProperty(
         "--viewer-height",
-        `${height}px`
+        `${height}px`,
       );
       // 计算高度缩放比例
       const scaleY = height / defaultHeight;
       document.documentElement.style.setProperty(
         "--scale-y",
-        scaleY.toString()
+        scaleY.toString(),
       );
     } else {
       document.documentElement.style.setProperty("--viewer-height", "100vh");
@@ -81,10 +80,29 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleAddCrane = () => {
+      AlertModalManager.current?.show({
+        title: "添加塔吊",
+        message: "",
+        type: "info",
+        duration: 0, // 不自动关闭，让用户在弹窗内完成操作
+        component: <AddCraneDialog />,
+      });
+    };
+
+    EventBus.on(EventName.ADD_CRANE, handleAddCrane);
+
+    return () => {
+      EventBus.off(EventName.ADD_CRANE, handleAddCrane);
+    };
+  }, []);
+
   return (
     <>
       <WebSocketAPIComponent />
       <PointLiftTrailController />
+      <LeftPanelArea />
       <Three3DView />
       <AlertModal />
     </>
