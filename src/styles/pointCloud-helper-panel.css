@@ -1,5 +1,10 @@
 .pointCloud-helper-panel {
-
+    -webkit-scrollbar: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    &::-webkit-scrollbar {
+        display: none;
+    }
     background: #00000021;
     backdrop-filter: blur(5px);
     border-radius: calc(0px * var(--scale, 1)) calc(39px * var(--scale, 1)) calc(0px * var(--scale, 1)) calc(25px * var(--scale, 1));
