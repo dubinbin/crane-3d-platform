@@ -7,8 +7,8 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { CraneType, type CraneInfo, type OnlineStatus } from '../types';
-import db1Model from '../assets/resource/model/db1.fbx?url';
-import floor2Model from '../assets/resource/model/floor2.fbx?url';
+import luffingJibTowerModel from '../assets/model/luffing-jib-tower.fbx?url';
+import flatTopTowerModel from '../assets/model/flat-top-tower.fbx?url';
 
 export interface CraneUserData {
   radius: number;
@@ -43,7 +43,7 @@ export class CraneManager {
    */
   loadFBX(): void {
     this.fbxLoader.load(
-      db1Model,
+      luffingJibTowerModel,
       (object) => {
         // 保存原始模型作为模板
         this.boomCraneTemplate = object.clone();
@@ -65,7 +65,7 @@ export class CraneManager {
      */
   loadFloorFBX(): void {
     this.fbxLoader.load(
-      floor2Model,
+      flatTopTowerModel,
       (object) => {
         // 保存原始模型作为模板
         this.floorCraneTemplate = object.clone();

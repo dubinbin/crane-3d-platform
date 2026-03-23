@@ -13,8 +13,8 @@ import { FileUtils } from './file-util';
 import { CraneManager, type CraneUserData } from './crane-manager';
 import { useStore } from '../store';
 import { OnlineStatus, type CraneInfo, type CraneType } from '../types';
-import { config } from '../assets/resource/config';
-import pcdFile from '../assets/resource/pcd/1_clean_1.pcd?url';
+import { config } from '../assets/config';
+import pcdFile from '../assets/model/1_clean_1.pcd?url';
 
 interface ViewerOptions {
   width?: number;
