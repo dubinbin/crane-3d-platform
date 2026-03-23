@@ -1,6 +1,9 @@
 import { useEffect, useRef } from "react";
 import { Deserialize, type Message } from "../utils/deserialize";
-import { SYSTEM_INFO_TYPE_MAP, WEBSOCKET_RESPONSE_CODE_MAP } from "../constants";
+import {
+  SYSTEM_INFO_TYPE_MAP,
+  WEBSOCKET_RESPONSE_CODE_MAP,
+} from "../constants";
 import { useStore } from "../store";
 import {
   calcRotationAngle,
@@ -15,22 +18,28 @@ export const WebSocketAPIComponent = () => {
   const updateRopeLength = useStore((state) => state.updateRopeLength);
   const updateCraneRotation = useStore((state) => state.updateCraneRotation);
   const setIsInPointLift = useStore((state) => state.setIsInPointLift);
-  const setCurrentMovingCraneId = useStore((state) => state.setCurrentMovingCraneId);
+  const setCurrentMovingCraneId = useStore(
+    (state) => state.setCurrentMovingCraneId,
+  );
   const updateCraneRotationText = useStore(
-    (state) => state.updateCraneRotationText
+    (state) => state.updateCraneRotationText,
   );
   const updateCraneArmPitchText = useStore(
-    (state) => state.updateCraneArmPitchText
+    (state) => state.updateCraneArmPitchText,
   );
-  const updateCraneCarDistance = useStore((state) => state.updateCraneCarDistance);
-  
-  const updateCraneCarDistanceText = useStore((state) => state.updateCraneCarDistanceText);
+  const updateCraneCarDistance = useStore(
+    (state) => state.updateCraneCarDistance,
+  );
+
+  const updateCraneCarDistanceText = useStore(
+    (state) => state.updateCraneCarDistanceText,
+  );
   const cranelist = useStore((state) => state.cranes);
-  
+
   // 使用 ref 保存最新的值，避免闭包问题
   const cranelistRef = useRef(cranelist);
   cranelistRef.current = cranelist;
-  
+
   const updateFunctionsRef = useRef({
     updateCraneArmPitch,
     updateRopeLength,
@@ -88,13 +97,20 @@ export const WebSocketAPIComponent = () => {
       // TCP chunk 可能一次带多帧（40 bytes/帧），这里按帧解包
       const frames = Math.floor(buffer.length / FRAME_LEN);
       if (frames === 0) {
-        console.warn(`Got ${buffer.length} bytes (<${FRAME_LEN}), skip`, buffer);
+        console.warn(
+          `Got ${buffer.length} bytes (<${FRAME_LEN}), skip`,
+          buffer,
+        );
         return;
       }
 
       for (let i = 0; i < frames; i++) {
         try {
-          const message: Message = Deserialize.deserialize(buffer, i, FRAME_LEN);
+          const message: Message = Deserialize.deserialize(
+            buffer,
+            i,
+            FRAME_LEN,
+          );
           handleSocketMessage(message);
         } catch (error) {
           console.error("Error deserializing frame:", i, error);
@@ -111,7 +127,6 @@ export const WebSocketAPIComponent = () => {
       // console.log("ValueArray1 (Int16):", message.valueArray1);
       // console.log("ValueArray2 (Float64):", message.valueArray2);
 
-
       if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS) {
         const eventData: number[] = message.valueArray1;
         handleTaskCurrentStatus(eventData);
@@ -120,13 +135,19 @@ export const WebSocketAPIComponent = () => {
 
       if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.SYSTEM_INFO) {
         if (message.valueArray1?.[0] === SYSTEM_INFO_TYPE_MAP.pointLift) {
-         setIsInPointLift(true);
+          setIsInPointLift(true);
         } else {
           setIsInPointLift(false);
         }
       }
 
-      if ([WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS, WEBSOCKET_RESPONSE_CODE_MAP.EMERGENCY_STOP, WEBSOCKET_RESPONSE_CODE_MAP.AUTO_TRANSPORT_END].includes(message.type)) {
+      if (
+        [
+          WEBSOCKET_RESPONSE_CODE_MAP.TASK_CURRENT_STATUS,
+          WEBSOCKET_RESPONSE_CODE_MAP.EMERGENCY_STOP,
+          WEBSOCKET_RESPONSE_CODE_MAP.AUTO_TRANSPORT_END,
+        ].includes(message.type)
+      ) {
         setIsInPointLift(false);
       }
 
@@ -136,7 +157,6 @@ export const WebSocketAPIComponent = () => {
       //   sendToDifferentCrane(eventData, craneId);
       //   return;
       // }
-
 
       if (message.type === WEBSOCKET_RESPONSE_CODE_MAP.CURRENT_MOVING_POSTURE) {
         // const craneId = message.type;
@@ -160,14 +180,19 @@ export const WebSocketAPIComponent = () => {
 
     // 定义 sendToDifferentCrane 函数，使用 ref 访问最新的值
     const sendToDifferentCrane = (eventData: number[], craneId: number) => {
-      const matchItem = cranelistRef.current.find((c) => c.id === craneId.toString());
+      const matchItem = cranelistRef.current.find(
+        (c) => c.id === craneId.toString(),
+      );
       const craneType = matchItem?.type;
       const updates = updateFunctionsRef.current;
-      
+
       if (matchItem) {
         const originalRotation = parseFloat(eventData[0].toFixed(2));
         const rotation = calcRotationAngle(originalRotation);
-        updates.updateCraneRotationText(matchItem.id, originalRotation.toFixed(2));
+        updates.updateCraneRotationText(
+          matchItem.id,
+          originalRotation.toFixed(2),
+        );
         updates.updateCraneRotation(matchItem.id, rotation);
         if (window.viewer) {
           window.viewer
@@ -178,11 +203,14 @@ export const WebSocketAPIComponent = () => {
         if (craneType === CraneType.BOOM) {
           const carDistance = calculatePostureAbility(
             matchItem.radius || 0,
-            parseFloat(eventData[1].toFixed(2))
+            parseFloat(eventData[1].toFixed(2)),
           );
           const originalArmPitch = parseFloat(eventData[1].toFixed(2));
-        
-          updates.updateCraneArmPitchText(matchItem.id, originalArmPitch.toFixed(2));
+
+          updates.updateCraneArmPitchText(
+            matchItem.id,
+            originalArmPitch.toFixed(2),
+          );
           updates.updateCraneArmPitch(matchItem.id, carDistance);
           if (window.viewer) {
             window.viewer
@@ -191,7 +219,10 @@ export const WebSocketAPIComponent = () => {
           }
         } else {
           const carDistance = parseFloat(eventData[1].toFixed(2));
-          updates.updateCraneCarDistanceText(matchItem.id, carDistance.toFixed(2));
+          updates.updateCraneCarDistanceText(
+            matchItem.id,
+            carDistance.toFixed(2),
+          );
           updates.updateCraneCarDistance(matchItem.id, carDistance);
           if (window.viewer) {
             window.viewer
@@ -200,7 +231,9 @@ export const WebSocketAPIComponent = () => {
           }
         }
 
-        const ropeLength = (matchItem.originalHeight * ((matchItem.ropePercent || 100) / 100)) - eventData[2];
+        const ropeLength =
+          matchItem.originalHeight * ((matchItem.ropePercent || 100) / 100) -
+          eventData[2];
 
         updates.updateRopeLength(matchItem.id, ropeLength);
         if (window.viewer) {

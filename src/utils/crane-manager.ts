@@ -18,8 +18,8 @@ export interface CraneUserData {
   topController: THREE.Object3D | null;
   neckController: THREE.Object3D | null;
   hooksHeader: THREE.Object3D | null;
-  rope: THREE.Mesh | null;
-  hook: THREE.Mesh | null;
+  rope: THREE.Group | null;
+  hook: THREE.Group | null;
   rotationAngle: number;
   armPitchAngle: number;
   ropeLength: number;
@@ -85,48 +85,80 @@ export class CraneManager {
    * 创建吊绳和钩子
    * @param hooksHeader - 吊钩头部对象
    * @param ropeLength - 吊绳长度
-   * @returns 包含吊绳和钩子的对象 {rope, hook}
+   * @returns 包含吊绳组与吊钩组 { rope, hook }
    */
-  createRope(hooksHeader: THREE.Object3D | null, ropeLength: number = 3.0): { rope: THREE.Mesh; hook: THREE.Mesh } | null {
+  createRope(hooksHeader: THREE.Object3D | null, ropeLength: number = 3.0): { rope: THREE.Group; hook: THREE.Group } | null {
     if (!hooksHeader) {
       console.warn('未找到吊钩头部，无法创建吊绳');
       return null;
     }
 
-    // 创建吊绳几何体（圆柱体）
-    const ropeRadius = 0.02; // 吊绳半径
-    const ropeGeometry = new THREE.CylinderGeometry(ropeRadius, ropeRadius, ropeLength, 8);
-   
-    // 创建吊绳材质（黑色）
-    const ropeMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x333333,
-      transparent: false
+    const ropeRadius = 0.006;
+    // 绳组绕 X 转 90° 后，局部 Z 对应世界水平 Y（小车前后方向），两根绳前后各一根
+    const ropeHalfGap = 0.022;
+
+    const ropeMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffd650,
+      transparent: false,
     });
-   
-    // 创建吊绳网格
-    const rope = new THREE.Mesh(ropeGeometry, ropeMaterial);
-    rope.name = 'crane-rope';
-   
-    // 创建钩子（黄色球体）
-    const hookRadius = 0.08; // 钩子半径，比吊绳粗一些
-    const hookGeometry = new THREE.SphereGeometry(hookRadius, 16, 12);
-   
-    // 创建钩子材质（黄色）
-    const hookMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0xFFD700, // 金黄色
-      transparent: false
+
+    const ropeGroup = new THREE.Group();
+    ropeGroup.name = 'crane-rope';
+
+    const addRopeStrand = (offsetZ: number): void => {
+      const geom = new THREE.CylinderGeometry(ropeRadius, ropeRadius, ropeLength, 6);
+      const strand = new THREE.Mesh(geom, ropeMaterial);
+      strand.name = 'crane-rope-strand';
+      strand.position.set(0, 0, offsetZ);
+      ropeGroup.add(strand);
+    };
+    addRopeStrand(ropeHalfGap);
+    addRopeStrand(-ropeHalfGap);
+
+    const hookYellow = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: false,
     });
-   
-    // 创建钩子网格
-    const hook = new THREE.Mesh(hookGeometry, hookMaterial);
-    hook.name = 'crane-hook';
-   
-    // 将吊绳和钩子添加到场景中
-    this.scene.add(rope);
-    this.scene.add(hook);
-   
+    const hookMetal = new THREE.MeshBasicMaterial({
+      color: 0xffd700,
+      transparent: false,
+    });
+
+    const hookGroup = new THREE.Group();
+    hookGroup.name = 'crane-hook';
+
+    // 上宽下窄的圆台，形似倒梯形块（与绳底衔接的一端较宽）
+    const blockHeight = 0.11;
+    const blockTopR = 0.075;
+    const blockBottomR = 0.042;
+    const block = new THREE.Mesh(
+      new THREE.CylinderGeometry(blockTopR, blockBottomR, blockHeight, 20),
+      hookYellow,
+    );
+    block.name = 'crane-hook-block';
+    block.position.z = -blockHeight / 2;
+    block.rotation.set(Math.PI / 2, 0, 0);
+    hookGroup.add(block);
+
+    // 弯钩：圆环弧 + 竖向钩柄（整体朝向在 updateRopePosition 里对 hook 组绕 Z 校正）
+    const curveR = 0.05;
+    const curveTube = 0.009;
+    const arc = new THREE.Mesh(
+      new THREE.TorusGeometry(curveR, curveTube, 10, 24, Math.PI * 1.35),
+      hookMetal,
+    );
+    arc.name = 'crane-hook-curve';
+    arc.rotation.y = Math.PI / 2;
+    arc.rotation.z = Math.PI * 1;
+    const blockBottomZ = -blockHeight;
+    arc.position.set(0, 0, blockBottomZ - curveR * 0.7);
+    hookGroup.add(arc);
+
+    this.scene.add(ropeGroup);
+    this.scene.add(hookGroup);
+
     console.log('创建吊绳和钩子成功，长度:', ropeLength);
-    return { rope, hook };
+    return { rope: ropeGroup, hook: hookGroup };
   }
 
   /**
@@ -152,13 +184,15 @@ export class CraneManager {
     rope.position.copy(hookWorldPosition);
     rope.position.z -= ropeLength / 2; // 改为沿z轴向下
    
-    // 设置吊绳方向：绕x轴旋转90度，使其沿z轴方向
+    // 组整体绕 x 轴旋转 90°，子绳沿组局部 Y，在世界中竖直下垂
     rope.rotation.set(Math.PI / 2, 0, 0);
    
     // 设置钩子位置：在吊绳末尾（吊钩位置向下偏移整个吊绳长度）
     if (hook) {
       hook.position.copy(hookWorldPosition);
       hook.position.z -= ropeLength; // 钩子在吊绳末尾
+      // 沿世界 Z 俯视顺时针 90°，修正倒梯形与弯钩朝向
+      hook.rotation.set(0, 0, -Math.PI / 2);
     }
   }
 
@@ -172,11 +206,11 @@ export class CraneManager {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh;
         if (mesh.material) {
-          // 直接创建红色的标准材质，可以接收光照
+          // 偏红/橙的工程黄（挖掘机式涂装），带一点金属漆质感
           const newMaterial = new THREE.MeshStandardMaterial({
-            color: 0xff0000,  // 红色
-            metalness: 0.3,   // 金属度
-            roughness: 0.7,   // 粗糙度
+            color: 0xe89e18,
+            metalness: 0.5,
+            roughness: 0.4,
             transparent: false,
             opacity: 1.0,
           });
@@ -773,15 +807,15 @@ export class CraneManager {
     // 更新塔吊数据中的吊绳长度
     userData.ropeLength = clampedLength;
 
-    // 重新创建吊绳几何体以更新长度
-    const rope = userData.rope;
-    const ropeRadius = 0.02;
-   
-    // 移除旧的几何体
-    rope.geometry.dispose();
-   
-    // 创建新的几何体
-    rope.geometry = new THREE.CylinderGeometry(ropeRadius, ropeRadius, clampedLength, 8);
+    const ropeGroup = userData.rope;
+    const ropeRadius = 0.006;
+    ropeGroup.children.forEach((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const strand = child as THREE.Mesh;
+        strand.geometry.dispose();
+        strand.geometry = new THREE.CylinderGeometry(ropeRadius, ropeRadius, clampedLength, 6);
+      }
+    });
    
     // 更新吊绳位置
     this.updateRopePosition(crane);
